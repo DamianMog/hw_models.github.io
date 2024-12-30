@@ -23,13 +23,17 @@
   <div id="table-container"></div>
   
   <script>
+    // Link do opublikowanej strony HTML z Google Sheets
     const sheetHtmlUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pubhtml?gid=1713753991&single=true';
 
-    // Konfiguracja
-    const COLUMN_K_INDEX = 10;         // K = 10
-    const VALUE_TO_MATCH = 'tak';      // filtr na kolumnę K
-    const HIDDEN_COLUMNS = [2, 8, 9];  // ukrywamy C(2), I(8), J(9)
-    const MAX_COLUMN_INDEX = 13;       // powyżej N (13) usuwamy
+    // Kolumna K (A=0, B=1, C=2, ..., K=10)
+    const COLUMN_K_INDEX = 10;   
+    const VALUE_TO_MATCH = 'tak'; // "tak" (bez względu na wielkość liter)
+
+    // Kolumny do ukrycia
+    const HIDDEN_COLUMNS = [2, 8, 9];  // C(2), I(8), J(9)
+    // Maksymalny indeks kolumny, który chcemy pokazać (N = 13)
+    const MAX_COLUMN_INDEX = 13;
 
     fetch(sheetHtmlUrl)
       .then(response => response.text())
@@ -37,52 +41,48 @@
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlString, 'text/html');
         
-        // Znajdź wszystkie tabele opublikowane przez Google
+        // Znajdź wszystkie tabele
         const tables = doc.querySelectorAll('table');
         console.log('Znalezione tabele:', tables);
 
-        // Przykład: używamy OSTATNIEJ tabeli
-        // (Często tam są właściwe dane, ale zależy od układu – sprawdź w swojej publikacji)
+        // Wybierz właściwą tabelę (często ostatnia w dokumencie):
         const originalTable = tables[tables.length - 1];
         if (!originalTable) {
-          throw new Error('Nie znaleziono docelowej tabeli z danymi.');
+          throw new Error('Nie znaleziono tabeli z danymi.');
         }
 
-        // Spróbujmy odczytać thead
+        // Pobierz <thead> i <tbody>
         let thead = originalTable.querySelector('thead');
         let tbody = originalTable.querySelector('tbody');
 
-        // Jeśli thead nie istnieje lub jest pusty w th, to załóżmy, że
-        // pierwszy wiersz tbody to wiersz nagłówkowy.
-        if (!thead || thead.querySelectorAll('th').length === 0) {
-          thead = document.createElement('thead');
-          const firstRow = tbody.querySelector('tr');
-          if (!firstRow) {
-            throw new Error('Brak wierszy w tabeli!');
+        // Jeśli thead istnieje, sprawdź, czy rzeczywiście zawiera TH z danymi
+        const thInThead = thead ? thead.querySelectorAll('th') : null;
+        const hasValidHeaders = thInThead && thInThead.length > 0;
+
+        // Jeżeli thead jest pusty lub nie istnieje, a wiersz nagłówkowy (z <th>) jest w tbody:
+        if (!hasValidHeaders) {
+          // Szukamy pierwszego wiersza w TBODY, który ma <th> (to najpewniej nasz nagłówek)
+          const headerRowInTbody = tbody.querySelector('tr th')?.closest('tr');
+          if (headerRowInTbody) {
+            // Jeśli thead nie istnieje, stwórzmy go
+            if (!thead) {
+              thead = document.createElement('thead');
+              // Wstawiamy nowy thead przed tbody w strukturze oryginalnej tabeli
+              originalTable.insertBefore(thead, tbody);
+            }
+            // Przenosimy wiersz z TBODY -> THEAD
+            tbody.removeChild(headerRowInTbody);
+            thead.appendChild(headerRowInTbody);
           }
-          // Stwórz nowy wiersz nagłówkowy z komórek td → th
-          const newHeaderRow = document.createElement('tr');
-          const cells = firstRow.querySelectorAll('td');
-
-          cells.forEach(td => {
-            const th = document.createElement('th');
-            th.innerText = td.innerText;
-            newHeaderRow.appendChild(th);
-          });
-
-          // Dodaj nowy wiersz do thead
-          thead.appendChild(newHeaderRow);
-
-          // Usuń pierwszy wiersz z tbody, by się nie powtórzył w danych
-          tbody.removeChild(firstRow);
         }
 
-        // Teraz mamy pewność, że thead zawiera nagłówki
-        // a w tbody są dane
-
-        // Filtrujemy wiersze na "kolumna K = Tak"
-        const filteredRows = [];
+        // Teraz thead powinien mieć w sobie wiersz nagłówków
+        // Wiersze danych powinny pozostać w tbody
         const allRows = tbody.querySelectorAll('tr');
+
+        // --- FILTR: Kolumna K == "Tak" ---
+        // Zbierzmy te wiersze, które spełniają warunek
+        const filteredRows = [];
         allRows.forEach(tr => {
           const cells = tr.querySelectorAll('td');
           if (cells.length > COLUMN_K_INDEX) {
@@ -93,17 +93,16 @@
           }
         });
 
-        // Tworzymy nową tabelę
+        // ===== Budujemy nową tabelę =====
         const newTable = document.createElement('table');
 
-        // 1) Klonujemy thead (już z prawidłowym wierszem nagłówkowym)
+        // 1) Klonujemy thead (już z poprawnym nagłówkiem?)
         const clonedThead = thead.cloneNode(true);
 
-        // --- USUWANIE/UKRYWANIE KOLUMN W NAGŁÓWKU ---
+        // Usuwamy niechciane kolumny w thead (np. C, I, J oraz > N)
         const headerRow = clonedThead.querySelector('tr');
         if (headerRow) {
           const headerCells = headerRow.querySelectorAll('th');
-          // Przechodzimy od końca, by usuwać poprawnie
           for (let i = headerCells.length - 1; i >= 0; i--) {
             if (i > MAX_COLUMN_INDEX || HIDDEN_COLUMNS.includes(i)) {
               headerRow.removeChild(headerCells[i]);
@@ -113,13 +112,13 @@
 
         newTable.appendChild(clonedThead);
 
-        // 2) Tworzymy tbody z przefiltrowanymi wierszami
+        // 2) Tworzymy nowe <tbody> z przefiltrowanymi wierszami
         const newTbody = document.createElement('tbody');
         filteredRows.forEach(oldRow => {
           const rowClone = oldRow.cloneNode(true);
           const cells = rowClone.querySelectorAll('td');
-          
-          // usuwamy/ukrywamy kolumny C(2), I(8), J(9), > N(13)
+
+          // Usuwamy kolumny C(2), I(8), J(9) i wszystko powyżej N(13)
           for (let i = cells.length - 1; i >= 0; i--) {
             if (i > MAX_COLUMN_INDEX || HIDDEN_COLUMNS.includes(i)) {
               rowClone.removeChild(cells[i]);
@@ -129,7 +128,7 @@
         });
         newTable.appendChild(newTbody);
 
-        // Wstawiamy tabelę na stronę
+        // Wyświetlamy nową tabelę
         document.getElementById('table-container').appendChild(newTable);
       })
       .catch(err => console.error('Błąd przy pobieraniu/parowaniu HTML:', err));
