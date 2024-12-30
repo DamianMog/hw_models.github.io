@@ -33,6 +33,7 @@
       text-align: center;
       /* Pozwala zawijać tekst */
       white-space: normal;
+      vertical-align: middle;
     }
     th {
       background-color: #f4f4f4;
@@ -87,32 +88,10 @@
       background-color: #0056b3;
     }
 
-    /* Maksymalna szerokość miniaturki */
-    img.photo-thumb {
-      max-width: 100px;
-      cursor: pointer;
-    }
-
-    /* Popup do powiększenia zdjęć (opcjonalnie, jeśli chcesz) */
-    #photo-popup {
-      display: none;
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0, 0, 0, 0.8);
-      justify-content: center;
-      align-items: center;
-      z-index: 9999;
-    }
-    #photo-popup img {
-      max-width: 90%;
-      max-height: 90%;
-    }
-    #photo-popup .close-btn {
-      position: absolute;
-      top: 20px; right: 20px;
-      font-size: 30px;
-      color: white;
+    /* Ewentualny styl dla zdjęć w kolumnach */
+    .model-photo {
+      max-width: 80px;
+      max-height: 80px;
       cursor: pointer;
     }
   </style>
@@ -134,32 +113,19 @@
     </div>
   </div>
 
-  <!-- Opcjonalny popup do powiększania zdjęcia -->
-  <div id="photo-popup">
-    <span class="close-btn" onclick="hidePopup()">&times;</span>
-    <img src="" alt="Popup Image" />
-  </div>
-
   <script>
     /************************************************************
-     * KONFIGURACJA
+     * KONFIGURACJA KOLUMN
      ************************************************************/
     const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pub?gid=1713753991&single=true&output=csv';
-    const repoOwner = "DamianMog";         
-    const repoName = "missing-cars.github.io"; 
-    const folderPath = "images";  
-    const gitHubApiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${folderPath}`;
 
     // Kolumna Sell (index 10) musi być "Tak"
     const COLUMN_SELL = 10;
 
-    // Kolumny do wyświetlenia (bez NOTES (6)):
+    // Wyświetlamy następujące kolumny (bez NOTES (6)):
     // [Series (0), Year (1), Toy# (3), Col.# (4), Casting (5), Set# (7), Price (11), szt (12)]
-    // Teraz dodamy 2 nowe kolumny Photo 1 i Photo 2:
-    // Finalnie: 0=Series, 1=Year, 2=Toy#, 3=Col.#, 4=Casting, 5=Set#, 6=Price, 7=szt, 8=Photo1, 9=Photo2, 10=Wybierz, 11=Ilość
-    // ale do HEADERS i do TABELI wstawimy Photo1, Photo2 we właściwym miejscu.
-    const COLUMNS_TO_SHOW = [0, 1, 3, 4, 5, 7, 11, 12]; // oryginalne CSV kolumny
-    // HEADERS do tych kolumn:
+    // DODAJEMY DWIE KOLUMNY "Photo 1", "Photo 2" (na razie puste, zapełnimy je linkami z GitHuba)
+    // + dwie kolumny Wybierz, Ilość
     const HEADERS = [
       'Series',
       'Year',
@@ -168,115 +134,132 @@
       'Casting',
       'Set #',
       'Price',
-      'szt'
+      'szt',
+      'Photo 1',
+      'Photo 2',
+      'Wybierz',
+      'Ilość'
     ];
 
-    // W tym obiekcie zapiszemy info o zdjęciach: photosMap[ToyID] = {1: urlPhoto1, 2: urlPhoto2}
-    let photosMap = {};
+    // Indeksy w finalnej tabeli (po zbudowaniu):
+    //  0: Series
+    //  1: Year
+    //  2: Toy #
+    //  3: Col. #
+    //  4: Casting
+    //  5: Set #
+    //  6: Price
+    //  7: szt
+    //  8: Photo1
+    //  9: Photo2
+    // 10: Wybierz (checkbox)
+    // 11: Ilość (input)
 
-    // Zmienna globalna na przefiltrowane wiersze z CSV
-    let filteredRows = [];
+    // Kolumny z CSV, które wypełnimy w kolejności:
+    const COLUMNS_FROM_CSV = [0, 1, 3, 4, 5, 7, 11, 12];  // 8 kolumn
 
+    // Mapa (toy# -> { photo1: url, photo2: url })
+    const imagesMap = {};
+
+    // Funkcja do parsowania integera z fallbackiem
+    function parseIntOr(val, def = 1) {
+      const num = parseInt(val, 10);
+      return isNaN(num) ? def : num;
+    }
 
     /************************************************************
-     * GŁÓWNA FUNKCJA STARTOWA
-     * 1) Pobieramy CSV i filtrujemy
-     * 2) Pobieramy listę plików z GitHuba
-     * 3) Budujemy tabelę
+     * POBIERAMY LISTĘ PLIKÓW Z GITHUB (FOLDER IMAGES)
      ************************************************************/
-    Promise.all([
-      fetchCsvData(),        // pobiera i filtruje CSV
-      fetchGitHubImages()    // pobiera listę zdjęć i zapisuje w photosMap
-    ])
-    .then(() => {
-      buildTable();
-    })
-    .catch(err => {
-      console.error('Błąd w trakcie pobierania danych:', err);
-      document.getElementById('table-container').innerHTML =
-        '<p>Wystąpił błąd podczas wczytywania danych.</p>';
-    });
+    const repoOwner = "DamianMog";
+    const repoName = "missing-cars.github.io";
+    const folderPath = "images";  // Twój folder z plikami
+    const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${folderPath}`;
 
+    // Najpierw pobieramy listę plików z GitHuba
+    fetch(apiUrl)
+      .then(resp => {
+        if (!resp.ok) throw new Error(`Błąd GitHub API: ${resp.status}`);
+        return resp.json();
+      })
+      .then(files => {
+        // Przetwarzamy pliki, by wypełnić imagesMap
+        // Oczekujemy formatu <TOY#>_<1 lub 2>.<ext> (jpg, jpeg, png, gif)
+        files.forEach(file => {
+          if (file.type === "file" && file.name.match(/\.(jpg|jpeg|png|gif)$/i)) {
+            // np. "HTC83_1.png"
+            const nameNoExt = file.name.replace(/\.(jpg|jpeg|png|gif)$/i, ""); // "HTC83_1"
+            const parts = nameNoExt.split("_");                               // ["HTC83","1"] 
+            if (parts.length === 2) {
+              const [toyId, seq] = parts;
+              if (seq === "1" || seq === "2") {
+                // Dodaj do imagesMap
+                if (!imagesMap[toyId]) {
+                  imagesMap[toyId] = { photo1: null, photo2: null };
+                }
+                if (seq === "1") imagesMap[toyId].photo1 = file.download_url;
+                if (seq === "2") imagesMap[toyId].photo2 = file.download_url;
+              }
+            }
+          }
+        });
+
+        // Teraz mamy imagesMap gotowe. Możemy pobrać CSV i zbudować tabelę.
+        fetchAndBuildTable();
+      })
+      .catch(err => {
+        console.error("Błąd podczas pobierania plików z GitHub:", err);
+        // Nawet jeśli błąd, spróbujmy wczytać tabelę CSV (bez zdjęć)
+        fetchAndBuildTable();
+      });
 
     /************************************************************
-     * 1) POBRANIE I FILTRACJA CSV
+     * TWORZENIE TABELI + POBIERANIE CSV
      ************************************************************/
-    function fetchCsvData() {
-      return fetch(csvUrl)
+    function fetchAndBuildTable() {
+      fetch(csvUrl)
         .then(response => {
           if (!response.ok) {
-            throw new Error(`Błąd sieci: ${response.status}`);
+            throw new Error(`Błąd sieci (CSV): ${response.status}`);
           }
           return response.text();
         })
         .then(csvData => {
+          // 1) Dzielenie na linie, usunięcie pustych
           const lines = csvData
             .split('\n')
             .map(line => line.trim())
             .filter(line => line !== '');
+
+          // 2) Każda linia -> tablica kolumn
           const allRows = lines.map(line => line.split(','));
           if (allRows.length < 2) {
             throw new Error('CSV: brak danych lub za mało wierszy.');
           }
 
-          // Pierwszy wiersz - oryginalne headery (pomijamy)
+          // Pierwszy wiersz (allRows[0]) to oryginalne headery — pomijamy
+          // Reszta to dane
           const bodyRows = allRows.slice(1);
 
-          // Filtr: Sell(10) == "tak"
-          filteredRows = bodyRows.filter(row => {
+          // 3) FILTR: Tylko wiersze, gdzie Sell (index 10) == "Tak"
+          const filteredRows = bodyRows.filter(row => {
             const sellVal = (row[COLUMN_SELL] || '').trim().toLowerCase();
             return sellVal === 'tak';
           });
-        });
-    }
 
-    /************************************************************
-     * 2) POBRANIE LISTY ZDJĘĆ Z GITHUBA
-     *    Zapiszemy w photosMap[toyId][1 lub 2] = url
-     ************************************************************/
-    function fetchGitHubImages() {
-      return fetch(gitHubApiUrl)
-        .then(resp => {
-          if (!resp.ok) {
-            throw new Error(`Błąd pobierania plików z GitHuba: ${resp.status}`);
-          }
-          return resp.json();
+          // 4) Budowa tabeli (z 12 kolumnami)
+          buildTable(filteredRows);
         })
-        .then(files => {
-          photosMap = {}; // wyzeruj na wszelki wypadek
-
-          files.forEach(file => {
-            // Sprawdzamy, czy to plik z rozszerzeniem .jpg/.jpeg/.png/.gif
-            if (file.type === "file" && file.name.match(/\.(jpg|jpeg|png|gif)$/i)) {
-              // Oczekujemy formatu: <ToyID>_<1lub2>.<ext>
-              // np. HTC83_1.png
-              const match = file.name.match(/^(.+)_(1|2)\.(jpg|jpeg|png|gif)$/i);
-              if (!match) {
-                // nie pasuje do wzorca
-                return;
-              }
-              const toyId = match[1];   // np. "HTC83"
-              const photoNum = match[2]; // "1" lub "2"
-
-              // Zapisz w obiekcie
-              if (!photosMap[toyId]) {
-                photosMap[toyId] = {};
-              }
-              photosMap[toyId][photoNum] = file.download_url;
-            }
-          });
+        .catch(err => {
+          console.error('Błąd podczas wczytywania CSV:', err);
+          document.getElementById('table-container').innerHTML =
+            '<p>Wystąpił błąd podczas wczytywania danych.</p>';
         });
     }
 
-
-    /************************************************************
-     * 3) BUDOWA TABELI
-     ************************************************************/
-    function buildTable() {
-      // Budujemy strukturę table → thead → tbody
+    function buildTable(filteredRows) {
       const table = document.createElement('table');
 
-      // THEAD (dodajemy HEADERS + 2 kolumny Photo1, Photo2 + Wybierz, Ilość)
+      // THEAD
       const thead = document.createElement('thead');
       const headerRow = document.createElement('tr');
 
@@ -285,26 +268,6 @@
         th.textContent = h;
         headerRow.appendChild(th);
       });
-
-      // Dodatkowe kolumny: Photo 1, Photo 2
-      let thPhoto1 = document.createElement('th');
-      thPhoto1.textContent = 'Photo 1';
-      headerRow.appendChild(thPhoto1);
-
-      let thPhoto2 = document.createElement('th');
-      thPhoto2.textContent = 'Photo 2';
-      headerRow.appendChild(thPhoto2);
-
-      // Kolumna "Wybierz"
-      const thSelect = document.createElement('th');
-      thSelect.textContent = 'Wybierz';
-      headerRow.appendChild(thSelect);
-
-      // Kolumna "Ilość"
-      const thQty = document.createElement('th');
-      thQty.textContent = 'Ilość';
-      headerRow.appendChild(thQty);
-
       thead.appendChild(headerRow);
       table.appendChild(thead);
 
@@ -314,51 +277,40 @@
       filteredRows.forEach(row => {
         const tr = document.createElement('tr');
 
-        // Wypełniamy kolumny z COLUMNS_TO_SHOW
-        COLUMNS_TO_SHOW.forEach(index => {
+        // Wypełnienie 8 kolumn danymi z CSV (COLUMNS_FROM_CSV)
+        COLUMNS_FROM_CSV.forEach((colIndex, i) => {
           const td = document.createElement('td');
-          td.textContent = row[index] || '';
+          td.textContent = row[colIndex] || '';
           tr.appendChild(td);
         });
 
-        // ---- Photo 1, Photo 2 ----
-        const toyID = row[3]; // bo w COLUMNS_TO_SHOW = [0,1,3,4,5,7,11,12], index 3=Toy#
-        // UWAGA: sprawdź, czy na pewno "Toy #" jest w kolumnie 3 w finalnej tabeli
-        // (jeśli Tabela: 0=Series,1=Year,2=Toy#,3=Col.#, to może trzeba dopasować).
-        // Według HEADERS: Series(0), Year(1), Toy#(2?), ... 
-        // W razie czego zrób console.log(...), by sprawdzić.
+        // Indeks 2 w finalnej tabeli to "Toy #"
+        // Odczyt toyId (np. "HTC83")
+        const toyId = row[3]?.trim() || ''; // bo kol. 3 w CSV to "Toy #"
 
+        // 9-ta kolumna => Photo 1
         const tdPhoto1 = document.createElement('td');
-        const tdPhoto2 = document.createElement('td');
-
-        // Spr. czy mamy w photosMap toyID i photo1
-        if (photosMap[toyID] && photosMap[toyID]['1']) {
+        tdPhoto1.innerHTML = ''; // domyślnie pusto
+        if (toyId && imagesMap[toyId]?.photo1) {
           const img1 = document.createElement('img');
-          img1.src = photosMap[toyID]['1'];
-          img1.alt = "Photo 1";
-          img1.classList.add('photo-thumb');
-          // Dodaj event do powiększania
-          img1.addEventListener('click', () => showPopup(img1.src));
+          img1.classList.add('model-photo');
+          img1.src = imagesMap[toyId].photo1;
           tdPhoto1.appendChild(img1);
-        } else {
-          tdPhoto1.textContent = '-'; // brak fotki
         }
-
-        if (photosMap[toyID] && photosMap[toyID]['2']) {
-          const img2 = document.createElement('img');
-          img2.src = photosMap[toyID]['2'];
-          img2.alt = "Photo 2";
-          img2.classList.add('photo-thumb');
-          img2.addEventListener('click', () => showPopup(img2.src));
-          tdPhoto2.appendChild(img2);
-        } else {
-          tdPhoto2.textContent = '-';
-        }
-
         tr.appendChild(tdPhoto1);
+
+        // 10-ta kolumna => Photo 2
+        const tdPhoto2 = document.createElement('td');
+        tdPhoto2.innerHTML = '';
+        if (toyId && imagesMap[toyId]?.photo2) {
+          const img2 = document.createElement('img');
+          img2.classList.add('model-photo');
+          img2.src = imagesMap[toyId].photo2;
+          tdPhoto2.appendChild(img2);
+        }
         tr.appendChild(tdPhoto2);
 
-        // Kolumna "Wybierz" (checkbox)
+        // 11-ta kolumna => Wybierz (checkbox)
         const tdSelect = document.createElement('td');
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
@@ -366,19 +318,16 @@
         tdSelect.appendChild(checkbox);
         tr.appendChild(tdSelect);
 
-        // Kolumna "Ilość" (input number)
+        // 12-ta kolumna => Ilość (input number)
         const tdQty = document.createElement('td');
         const inputNumber = document.createElement('input');
         inputNumber.type = 'number';
         inputNumber.min = '1';
-        // max = kolumna 'szt' (w row[12]) bo w oryginalnym CSV to index 12
-        // (ale w TABELI jest to index 7 w COLUMNS_TO_SHOW).
-        // Lepiej weźmy raw z row[12].
+        // max = wartość w kolumnie 'szt' (index 12 w CSV)
         const sztValue = parseIntOr(row[12], 1);
         inputNumber.max = sztValue.toString();
         inputNumber.value = '1';
         inputNumber.addEventListener('change', updateSummary);
-
         tdQty.appendChild(inputNumber);
         tr.appendChild(tdQty);
 
@@ -387,18 +336,17 @@
 
       table.appendChild(tbody);
 
-      // Wstawiamy do container
+      // Wstawienie do #table-container
       const container = document.getElementById('table-container');
-      container.innerHTML = '';  // czyścimy stare
+      container.innerHTML = '';  // czyścimy
       container.appendChild(table);
 
-      // Uruchamiamy podsumowanie
+      // Początkowa aktualizacja (gdy nic nie zaznaczone)
       updateSummary();
     }
 
-
     /************************************************************
-     * OBSŁUGA PODSUMOWANIA
+     * OBSŁUGA PODSUMOWANIA I KOPIOWANIA
      ************************************************************/
     function updateSummary() {
       const table = document.querySelector('#table-container table');
@@ -411,36 +359,36 @@
       // Tablica na szczegóły wybranych modeli
       const selectedModels = [];
 
-      rows.forEach(tr => {
+      rows.forEach(row => {
         // Indeksy w finalnej tabeli:
-        //  0: Series
-        //  1: Year
-        //  2: Toy #
-        //  3: Col. #
-        //  4: Casting
-        //  5: Set #
-        //  6: Price
-        //  7: szt
-        //  8: Photo1
-        //  9: Photo2
-        // 10: Wybierz (checkbox)
-        // 11: Ilość (input)
-        const checkboxCell = tr.cells[10];
+        //   0: Series
+        //   1: Year
+        //   2: Toy #
+        //   3: Col. #
+        //   4: Casting
+        //   5: Set #
+        //   6: Price
+        //   7: szt
+        //   8: Photo1
+        //   9: Photo2
+        //  10: Wybierz (checkbox)
+        //  11: Ilość (input)
+        const checkboxCell = row.cells[10];
         const checkbox = checkboxCell.querySelector('input[type="checkbox"]');
         if (!checkbox) return;
 
         if (checkbox.checked) {
           selectedCount++;
-          tr.classList.add('selected');
+          row.classList.add('selected'); // Podświetlenie wiersza
 
-          // Odczyt "Toy #" – kolumna 2
-          const toyText = tr.cells[2].textContent; 
-          
-          // Cena (Price) – kolumna 6
-          const priceValue = parseFloat(tr.cells[6].textContent) || 0;
+          // Odczyt Toy #
+          const toyText = row.cells[2].textContent;
 
-          // Ilość (kolumna 11)
-          const qtyCell = tr.cells[11];
+          // Odczyt ceny (Price) → komórka 6
+          const priceValue = parseFloat(row.cells[6].textContent) || 0;
+
+          // Ilość → komórka 11
+          const qtyCell = row.cells[11];
           const qtyInput = qtyCell.querySelector('input[type="number"]');
           const qty = parseInt(qtyInput.value, 10) || 1;
 
@@ -451,7 +399,7 @@
           // Dodajemy do listy wybranych modeli
           selectedModels.push(`${toyText} (x${qty}, ${cost}zł)`);
         } else {
-          tr.classList.remove('selected');
+          row.classList.remove('selected');
         }
       });
 
@@ -465,8 +413,10 @@
         return;
       }
 
+      // Jeśli zaznaczono cokolwiek → pokazujemy przycisk kopiowania
       copyBtn.style.display = 'inline-block';
 
+      // Budowa treści podsumowania:
       const joinedModels = selectedModels.join(', ');
       summaryEl.textContent =
         `Wybrano ${selectedCount} model(i).\n` +
@@ -474,30 +424,11 @@
         `Razem do zapłaty: ${totalCost.toFixed(2)} zł.`;
     }
 
-    /************************************************************
-     * KOPIOWANIE PODSUMOWANIA
-     ************************************************************/
     function copySummary() {
       const summaryText = document.getElementById('summary').textContent;
       navigator.clipboard.writeText(summaryText).then(() => {
         alert('Skopiowano treść podsumowania!');
       });
-    }
-
-    /************************************************************
-     * POPUP ZE ZDJĘCIEM
-     ************************************************************/
-    function showPopup(src) {
-      const popup = document.getElementById('photo-popup');
-      const imgPopup = popup.querySelector('img');
-      imgPopup.src = src;
-      popup.style.display = 'flex';
-    }
-
-    function hidePopup() {
-      const popup = document.getElementById('photo-popup');
-      popup.style.display = 'none';
-      popup.querySelector('img').src = '';
     }
   </script>
 </body>
