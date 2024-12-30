@@ -4,46 +4,92 @@
   <meta charset="UTF-8">
   <title>Modele na sprzedaż</title>
   <style>
-    table {
-      border-collapse: collapse;
+    /* Cała strona wyśrodkowana */
+    html, body {
+      margin: 0; 
+      padding: 0;
+      height: 100%;
+      font-family: sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start; /* by strona zaczynała się u góry */
+      background-color: #f0f0f0;
+    }
+
+    #table-container {
+      width: 95%; /* tabela zajmie ~95% szerokości ekranu */
       margin-top: 20px;
     }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;      /* stały rozkład kolumn */
+      white-space: nowrap;      /* wyłącza zawijanie tekstu */
+      background-color: #fff;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      text-align: center;       /* wyśrodkowanie tekstu w komórkach */
+    }
+
     th, td {
       border: 1px solid #ccc;
       padding: 8px 12px;
+      vertical-align: middle;   /* wyśrodkowanie w pionie */
     }
+
     th {
-      background-color: #f5f5f5;
+      background-color: #e0e0e0;
+      font-weight: 600;
     }
+
+    /* Stylowanie checkboxa - większy rozmiar i wycentrowanie */
+    .checkbox-cell {
+      display: flex; 
+      justify-content: center; 
+      align-items: center;
+    }
+    .checkbox-cell input[type="checkbox"] {
+      width: 20px; 
+      height: 20px; 
+      cursor: pointer;
+    }
+
+    /* Stylowanie input (kolumna Ilość) */
     input[type="number"] {
-      width: 80px;
+      width: 70px;
+      text-align: center;
+      padding: 4px;
     }
   </style>
 </head>
 <body>
-  <h1>Modele na sprzedaż (kolumna K = "Tak")</h1>
-
   <div id="table-container"></div>
 
   <script>
-    // Link do pliku CSV
+    // URL do CSV
     const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pub?gid=1713753991&single=true&output=csv';
 
-    // Kolumny, które chcemy ukryć
-    // C(2), I(8), J(9), K(10), N(13)
-    const HIDDEN_COLUMNS = [2, 8, 9, 10, 13];
+    // Indeksy kolumn, które chcemy zachować (Series, Year, Toy #, Col. #, Casting, Notes, Set #, Price, szt).
+    // Wg wcześniejszych ustaleń: 
+    //   0=Series, 1=Year, 3=Toy#, 4=Col.#, 5=Casting, 6=Notes, 7=Set#, 11=Price, 12=szt
+    // Następnie dodamy kolumny: Wybierz, Ilość (dynamicznie)
+    const COLUMNS_TO_SHOW = [0, 1, 3, 4, 5, 6, 7, 11, 12];
 
-    // Filtr kolumny K (index 10) => "Tak"
-    const COLUMN_K_INDEX = 10;
-    const VALUE_TO_MATCH = 'tak';
+    // Nazwy nagłówków (opcjonalnie możemy użyć oryginalnych z CSV, ale tutaj chcemy je
+    // mieć w konkretnej kolejności i ewentualnie zmienione nazwy).
+    const HEADERS_NAMES = [
+      'Series',
+      'Year',
+      'Toy #',
+      'Col. #',
+      'Casting',
+      'Notes',
+      'Set #',
+      'Price',
+      'szt'
+    ];
 
-    // Kolumna M (index 12) - maksymalna liczba szt. do inputa
-    const COLUMN_M_INDEX = 12;
-
-    // Dla bezpieczeństwa ograniczamy liczbę kolumn, żeby nie wyświetlać dalekich kolumn
-    const MAX_COLUMN_INDEX = 20;
-
-    // Pomocnicza funkcja do przerobienia stringa na liczbę (lub 1)
+    // Pomocnicza funkcja do parsowania integera
     function parseIntOr(val, defaultVal = 1) {
       const parsed = parseInt(val, 10);
       return isNaN(parsed) ? defaultVal : parsed;
@@ -52,98 +98,92 @@
     fetch(csvUrl)
       .then(response => response.text())
       .then(csvData => {
-        // 1) Podział na wiersze
-        //    usuwamy ewentualne puste linie np. .filter(line => line.trim() !== '') w razie potrzeby
-        const rows = csvData.split('\n').map(line => line.trim()).filter(line => line !== '');
-        
-        // 2) Każdy wiersz dzielimy po przecinku -> tablica kolumn
-        //    Uwaga: proste split(',') może się wyłożyć, jeśli w arkuszu są przecinki w komórkach,
-        //    ale zakładamy, że ich nie ma lub używamy CSV w najprostszym formacie.
-        const data = rows.map(row => row.split(','));
+        // Rozbijamy na wiersze
+        const lines = csvData.split('\n').map(l => l.trim()).filter(l => l !== '');
+        // Każdy wiersz -> tablica kolumn
+        // Uwaga: proste split(',') może być problematyczne przy przecinkach w danych.
+        // Jeśli dane są proste, to wystarczy. W innym wypadku => PapaParse / inna biblioteka.
+        const data = lines.map(line => line.split(','));
 
         if (data.length < 2) {
-          throw new Error('Brak danych lub za mało wierszy w CSV.');
+          throw new Error('Za mało wierszy w CSV');
         }
 
-        // Pierwszy wiersz => nagłówki
-        const headers = data[0];
-        // Kolejne wiersze => dane
-        let bodyRows = data.slice(1);
+        // Pierwszy wiersz to nagłówki (ale i tak je nadpiszemy HEADERS_NAMES, jeśli chcemy).
+        // W razie czego oryginalne: const originalHeaders = data[0];
+        let bodyRows = data.slice(1); // reszta to wiersze z danymi
 
-        // 3) Filtr: wyświetlamy tylko wiersze, w których kolumna K(10) == "Tak"
-        bodyRows = bodyRows.filter(r => {
-          const val = (r[COLUMN_K_INDEX] || '').toString().trim().toLowerCase();
-          return val === VALUE_TO_MATCH;
-        });
-
-        // === BUDUJEMY TABELĘ HTML ===
+        // Budujemy tabelę
         const table = document.createElement('table');
 
-        // --- THEAD ---
+        // === THEAD ===
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
 
-        // Dodajemy komórki nagłówkowe (z pominięciem ukrytych kolumn)
-        headers.forEach((headerText, colIndex) => {
-          if (colIndex <= MAX_COLUMN_INDEX && !HIDDEN_COLUMNS.includes(colIndex)) {
-            const th = document.createElement('th');
-            th.textContent = headerText;
-            headerRow.appendChild(th);
-          }
+        // Dodajemy nagłówki z HEADERS_NAMES w kolejności COLUMNS_TO_SHOW
+        COLUMNS_TO_SHOW.forEach((colIndex, i) => {
+          const th = document.createElement('th');
+          // Wstawiamy nazwę z HEADERS_NAMES (lub oryginalną z CSV, jeśli wolisz)
+          th.textContent = HEADERS_NAMES[i] || '';
+          headerRow.appendChild(th);
         });
 
-        // Dodajemy 2 nowe kolumny do nagłówka
-        // 1) Wybierz (checkbox)
-        const thSelect = document.createElement('th');
-        thSelect.textContent = 'Wybierz';
-        headerRow.appendChild(thSelect);
+        // Dodatkowe 2 kolumny (Wybierz, Ilość)
+        const thWybierz = document.createElement('th');
+        thWybierz.textContent = 'Wybierz';
+        headerRow.appendChild(thWybierz);
 
-        // 2) Ilość (input number)
-        const thQty = document.createElement('th');
-        thQty.textContent = 'Ilość';
-        headerRow.appendChild(thQty);
+        const thIlosc = document.createElement('th');
+        thIlosc.textContent = 'Ilość';
+        headerRow.appendChild(thIlosc);
 
         thead.appendChild(headerRow);
         table.appendChild(thead);
 
-        // --- TBODY ---
+        // === TBODY ===
         const tbody = document.createElement('tbody');
 
+        // Generujemy wiersze danych
         bodyRows.forEach(row => {
           const tr = document.createElement('tr');
 
-          // Przetwarzamy każdą kolumnę w wierszu
-          row.forEach((cellValue, colIndex) => {
-            if (colIndex <= MAX_COLUMN_INDEX && !HIDDEN_COLUMNS.includes(colIndex)) {
-              const td = document.createElement('td');
-              td.textContent = cellValue;
-              tr.appendChild(td);
-            }
+          // Dla każdej kolumny z COLUMNS_TO_SHOW
+          COLUMNS_TO_SHOW.forEach(colIndex => {
+            const td = document.createElement('td');
+            // Jeśli w CSV brakuje kolumny (row[colIndex] = undefined), wstaw pusty
+            td.textContent = row[colIndex] || '';
+            tr.appendChild(td);
           });
 
-          // 1) Kolumna z checkboxem
+          // 1) Kolumna "Wybierz" (checkbox) wycentrowany
           const tdCheck = document.createElement('td');
+          tdCheck.classList.add('checkbox-cell'); // klasa do wycentrowania
+
           const checkbox = document.createElement('input');
           checkbox.type = 'checkbox';
+          // Powiększony został w CSS .checkbox-cell input[type="checkbox"] { width:20px; height:20px; }
           tdCheck.appendChild(checkbox);
           tr.appendChild(tdCheck);
 
-          // 2) Kolumna z <input type="number">
+          // 2) Kolumna "Ilość" (input type=number)
           const tdNumber = document.createElement('td');
-          const inputNum = document.createElement('input');
-          inputNum.type = 'number';
-          inputNum.min = '1';
-
-          // Ustal max = (wartość w kolumnie M) - 1
-          const mValue = parseIntOr(row[COLUMN_M_INDEX], 1);
-          if (mValue > 1) {
-            inputNum.max = (mValue - 1).toString();
+          const inputNumber = document.createElement('input');
+          inputNumber.type = 'number';
+          inputNumber.min = '1';
+          // Maks = wartość z kolumny "szt" (index 12) lub 1
+          const sztValue = parseIntOr(row[12], 1);
+          // Ustalamy max na sztValue (lub ewentualnie to samo - nic nie odejmujemy)
+          // bo: "Input w kolumnie ILOŚĆ ustaw wartość MAX na taką samą lub mniejszą jak wartość w kolumnie 'szt'."
+          // => max = sztValue
+          if (sztValue >= 1) {
+            inputNumber.max = sztValue.toString();
           } else {
-            inputNum.max = '1';
+            inputNumber.max = '1';
           }
-          inputNum.value = '1'; // domyślna wartość
+          // Domyślna wartość = 1
+          inputNumber.value = '1';
 
-          tdNumber.appendChild(inputNum);
+          tdNumber.appendChild(inputNumber);
           tr.appendChild(tdNumber);
 
           tbody.appendChild(tr);
@@ -151,11 +191,13 @@
 
         table.appendChild(tbody);
 
-        // Wstawiamy gotową tabelę do kontenera
-        document.getElementById('table-container').appendChild(table);
+        // Wstawiamy tabelę do kontenera
+        const container = document.getElementById('table-container');
+        container.innerHTML = ''; // czyścimy na wszelki wypadek
+        container.appendChild(table);
       })
       .catch(err => {
-        console.error('Błąd odczytu CSV:', err);
+        console.error('Błąd odczytu/parowania CSV:', err);
       });
   </script>
 </body>
