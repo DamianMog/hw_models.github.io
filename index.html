@@ -15,67 +15,83 @@
     th {
       background-color: #f5f5f5;
     }
+    input[type="number"] {
+      width: 80px; 
+    }
   </style>
-  <!-- Wczytujemy bibliotekę SheetJS (XLSX) z CDN -->
+  <!-- Biblioteka SheetJS z CDN -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-  <h1>Modele na sprzedaż (filtr: kolumna K = "Tak")</h1>
+  <h1>Modele na sprzedaż</h1>
   
   <div id="table-container"></div>
   
   <script>
-    // Link do pliku XLSX opublikowanego z Google Sheets
+    // Link do XLSX wyeksportowanego z Google Sheets
     const xlsxUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pub?output=xlsx';
 
-    // Definicje kolumn
-    // A=0, B=1, C=2, ..., K=10, L=11, M=12, N=13, O=14 ...
-    const COLUMN_K_INDEX = 10;          // K
-    const VALUE_TO_MATCH = 'tak';       // Filtr (małe litery)
-    const HIDDEN_COLUMNS = [2, 8, 9];   // C(2), I(8), J(9)
-    const MAX_COLUMN_INDEX = 13;        // Pow. kolumny N(13) ukrywamy
+    // Definicje kolumn (0-based index):
+    // A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7, I=8, J=9, K=10, L=11, M=12, N=13, ...
+    // Ukrywamy: C(2), I(8), J(9), K(10), N(13)
+    const HIDDEN_COLUMNS = [2, 8, 9, 10, 13];
+    // Jeśli w poprzednich przykładach był filtr kolumny K na "Tak",
+    // to tutaj K(10) i tak jest schowana, więc ewentualny filtr musimy najpierw zastosować,
+    // a dopiero potem schować K. (Jeśli jest niepotrzebny, można usunąć).
+    // Dla przykładu zachowuję filtr K=Tak (VALUE_TO_MATCH).
+
+    const COLUMN_K_INDEX = 10;       // K
+    const VALUE_TO_MATCH = 'tak';    // filtr => "Tak"
+    // Kolumna M ma indeks 12 => M=12 (potrzebna do inputa).
+    const COLUMN_M_INDEX = 12;
+
+    // Nic powyżej np. kolumny O(14)? 
+    // Jeśli chcesz ograniczyć do N(13) lub M(12), możesz to zmienić.
+    // Skoro N (13) i K(10) ukrywamy, to i tak się nie pokażą. 
+    // Ale w razie czego:
+    const MAX_COLUMN_INDEX = 20;   // Dajmy zapasowo 20, by nic dalszego się nie pokazało
+
+    // Funkcja pomocnicza do sprawdzenia/konwersji wartości w kolumnie M
+    function parseIntOr(val, defaultVal = 1) {
+      const parsed = parseInt(val, 10);
+      return isNaN(parsed) ? defaultVal : parsed;
+    }
 
     fetch(xlsxUrl)
-      .then(response => response.arrayBuffer()) // pobieramy plik XLSX jako ArrayBuffer
+      .then(response => response.arrayBuffer())
       .then(arrayBuffer => {
-        // Odczytujemy plik XLSX
+        // Odczyt workbooka z binarnego arrayBuffer
         const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-
-        // Wybieramy nazwę pierwszego arkusza (lub innego, jeśli trzeba)
+        
+        // Pierwszy arkusz w skoroszycie
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-
-        // Konwertujemy arkusz na dwuwymiarową tablicę (array of arrays)
-        // header: 1 => nie traktuje pierwszego wiersza jako klucze obiektu,
-        // tylko zwraca wszystko jako tablicę
+        
+        // Konwersja do tablicy tablic (header: 1 => pierwszy wiersz to [nagłówek], a potem [data...])
         const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
         if (data.length === 0) {
           throw new Error('Arkusz jest pusty lub nie ma danych.');
         }
-
-        // Pierwszy wiersz w 'data' to nagłówki (tablica strings)
+        
+        // Pierwszy wiersz to nagłówki
         const headers = data[0];
-        // Pozostałe wiersze to dane
-        const rows = data.slice(1);
+        // Kolejne wiersze to dane
+        let rows = data.slice(1);
 
-        // Filtrujemy wiersze => kolumna K (index 10) == "Tak"
-        // Uwaga: sprawdzamy, czy istnieje dana kolumna, i czy wartości są stringami.
-        const filteredRows = rows.filter(row => {
-          // row to tablica [col0, col1, col2, ...]
-          const cellValue = (row[COLUMN_K_INDEX] || '').toString().trim().toLowerCase();
-          return cellValue === VALUE_TO_MATCH;
+        // (Opcjonalnie) Filtr: kolumna K=10 == "Tak"
+        rows = rows.filter(row => {
+          const valK = (row[COLUMN_K_INDEX] || '').toString().trim().toLowerCase();
+          return valK === VALUE_TO_MATCH;
         });
 
-        // Teraz budujemy tabelę HTML
+        // === Budowa tabeli HTML ===
         const table = document.createElement('table');
-
-        // === Nagłówki ===
+        
+        // --- THEAD ---
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
 
-        // Przechodzimy przez 'headers' od lewej do prawej
-        // Usuwamy kolumny C(2), I(8), J(9), > N(13)
+        // Dodajemy widoczne (nieukryte) nagłówki z oryginalnych plus 2 nowe kolumny
         headers.forEach((headerText, index) => {
           if (index <= MAX_COLUMN_INDEX && !HIDDEN_COLUMNS.includes(index)) {
             const th = document.createElement('th');
@@ -84,15 +100,27 @@
           }
         });
 
+        // Dodajemy 2 nowe kolumny do HEADERS:
+        // 1) "Wybierz" (z checkbox)
+        let thSelect = document.createElement('th');
+        thSelect.textContent = 'Wybierz';
+        headerRow.appendChild(thSelect);
+
+        // 2) "Ilość" (z input type=number)
+        let thQty = document.createElement('th');
+        thQty.textContent = 'Ilość';
+        headerRow.appendChild(thQty);
+
         thead.appendChild(headerRow);
         table.appendChild(thead);
 
-        // === Dane (tbody) ===
+        // --- TBODY ---
         const tbody = document.createElement('tbody');
 
-        filteredRows.forEach(row => {
+        rows.forEach(row => {
           const tr = document.createElement('tr');
-          // row to np. ["VW", "2020", "Tak", ...] (zależnie od arkusza)
+          
+          // Generujemy komórki z oryginalnych danych
           row.forEach((cellValue, colIndex) => {
             if (colIndex <= MAX_COLUMN_INDEX && !HIDDEN_COLUMNS.includes(colIndex)) {
               const td = document.createElement('td');
@@ -100,12 +128,42 @@
               tr.appendChild(td);
             }
           });
+
+          // 1) Nowa kolumna: checkbox
+          const tdCheckbox = document.createElement('td');
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          tdCheckbox.appendChild(checkbox);
+          tr.appendChild(tdCheckbox);
+
+          // 2) Nowa kolumna: <input type="number">
+          const tdNumber = document.createElement('td');
+          const inputNum = document.createElement('input');
+          inputNum.type = 'number';
+          inputNum.min = '1';
+
+          // Odczytujemy wartość z kolumny M (index 12) => to limit górny
+          const mValue = parseIntOr(row[COLUMN_M_INDEX], 1);  
+          // max= mValue - 1
+          if (mValue > 1) {
+            inputNum.max = (mValue - 1).toString();
+          } else {
+            // jeśli w M jest 1 lub mniej albo brak wartości, 
+            // to max wstawiamy 1 (ew. brak, zależnie od wymagań)
+            inputNum.max = '1';
+          }
+
+          inputNum.value = '1'; // domyślna wartość
+
+          tdNumber.appendChild(inputNum);
+          tr.appendChild(tdNumber);
+
           tbody.appendChild(tr);
         });
 
         table.appendChild(tbody);
 
-        // Wstawiamy tabelę do kontenera w HTML
+        // Wstawiamy gotową tabelę
         document.getElementById('table-container').appendChild(table);
       })
       .catch(error => {
