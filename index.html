@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
-  <title>Filtr danych z CSV</title>
+  <title>Odczyt z Google Sheets (HTML)</title>
   <style>
     table {
       border-collapse: collapse;
@@ -18,71 +18,75 @@
   </style>
 </head>
 <body>
-  <h1>Dane z arkusza Google Sheets (kolumna K == "Tak")</h1>
+  <h1>Filtr: Tylko wiersze z kolumną K = "Tak"</h1>
+  
   <div id="table-container"></div>
   
   <script>
-    // Link do CSV (udostępniony z Google Sheets)
-    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pub?gid=1713753991&single=true&output=csv';
+    // Nowy link do pliku jako strona HTML (pubhtml)
+    const sheetHtmlUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pubhtml?gid=1713753991&single=true';
 
-    fetch(csvUrl)
-      .then(response => response.text()) // Pobieramy zawartość CSV jako tekst
-      .then(data => {
-        // Rozbijamy tekst na wiersze (nie używamy trim() tutaj)
-        let rows = data.split('\n');
+    // Kolumna K to indeks 10 (0=A, 1=B, ..., 10=K)
+    const COLUMN_K_INDEX = 10;
+    const VALUE_TO_MATCH = 'tak'; // użyjemy toLowerCase() dla pewności
+
+    fetch(sheetHtmlUrl)
+      .then(response => response.text())
+      .then(htmlString => {
+        // (1) Parsujemy całą stronę HTML
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlString, 'text/html');
+
+        // (2) Wyszukujemy oryginalną tabelę w dokumencie
+        // Zwykle Google publikuje arkusz w postaci <table> z thead/tbody
+        const originalTable = doc.querySelector('table');
+        if (!originalTable) {
+          throw new Error('Nie znaleziono tabeli w pobranym dokumencie.');
+        }
+
+        // (3) Wyciągamy nagłówek tabeli (<thead>)
+        const thead = originalTable.querySelector('thead');
         
-        // Usuwamy puste wiersze (np. jeśli jest trailing newline)
-        rows = rows.filter(row => row.trim() !== '');
+        // Wyciągamy wiersze (<tr>) z ciała tabeli (<tbody>)
+        const rows = originalTable.querySelectorAll('tbody tr');
 
-        // Pierwszy wiersz to nagłówki
-        const headers = rows[0].split(',');
-
-        // Pozostałe wiersze to dane
-        const bodyRows = rows.slice(1);
-
-        // Kolumna K to indeks 10 (0=A, 1=B, ..., 10=K)
-        const COLUMN_K_INDEX = 10;
-
-        // Filtrujemy wiersze tak, aby w kolumnie K występowało "Tak"
-        const filteredRows = bodyRows.filter(row => {
-          const cols = row.split(',');
-          // Zwracamy true, jeśli w kolumnie K jest dokładnie "Tak"
-          return (cols[COLUMN_K_INDEX]?.trim() === 'Tak');
+        // (4) Filtrowanie wierszy
+        // Tylko te, w których kolumna K (indeks 10) == "Tak" (nieważne czy wielkie/małe litery)
+        const filteredRows = [];
+        rows.forEach(tr => {
+          const cells = tr.querySelectorAll('td');
+          // Upewniamy się, że wiersz ma wystarczającą liczbę kolumn
+          if (cells.length > COLUMN_K_INDEX) {
+            const cellValue = cells[COLUMN_K_INDEX].innerText.trim().toLowerCase();
+            if (cellValue === VALUE_TO_MATCH) {
+              filteredRows.push(tr);
+            }
+          }
         });
 
-        // Tworzymy tabelę
-        const table = document.createElement('table');
+        // (5) Budujemy nową tabelę w dokumencie
+        const newTable = document.createElement('table');
 
-        // Thead z nagłówkami
-        const thead = document.createElement('thead');
-        const headerRow = document.createElement('tr');
-        headers.forEach(col => {
-          const th = document.createElement('th');
-          th.textContent = col;
-          headerRow.appendChild(th);
+        // Klonujemy thead z oryginalnej tabeli (jeśli istnieje)
+        if (thead) {
+          const clonedThead = thead.cloneNode(true);
+          newTable.appendChild(clonedThead);
+        }
+
+        // Tworzymy <tbody> i dodajemy przefiltrowane wiersze
+        const newTbody = document.createElement('tbody');
+        filteredRows.forEach(tr => {
+          // klonujemy gotowy wiersz (zawierający <td>)
+          newTbody.appendChild(tr.cloneNode(true));
         });
-        thead.appendChild(headerRow);
-        table.appendChild(thead);
 
-        // Tbody z przefiltrowanymi wierszami
-        const tbody = document.createElement('tbody');
-        filteredRows.forEach(row => {
-          const cols = row.split(',');
-          const tr = document.createElement('tr');
-          cols.forEach(colData => {
-            const td = document.createElement('td');
-            td.textContent = colData.trim();
-            tr.appendChild(td);
-          });
-          tbody.appendChild(tr);
-        });
-        table.appendChild(tbody);
+        newTable.appendChild(newTbody);
 
-        // Wstawiamy tabelę do kontenera w HTML
-        document.getElementById('table-container').appendChild(table);
+        // (6) Dodajemy nową tabelę do strony
+        document.getElementById('table-container').appendChild(newTable);
       })
-      .catch(error => {
-        console.error('Błąd podczas pobierania lub parsowania CSV:', error);
+      .catch(err => {
+        console.error('Błąd przy pobieraniu/parowaniu HTML:', err);
       });
   </script>
 </body>
