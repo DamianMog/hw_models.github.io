@@ -28,8 +28,11 @@
     fetch(csvUrl)
       .then(response => response.text()) // Pobieramy zawartość CSV jako tekst
       .then(data => {
-        // Rozdzielamy tekst na wiersze
-        const rows = data.trim().split('\n');
+        // Rozbijamy tekst na wiersze (nie używamy trim() tutaj)
+        let rows = data.split('\n');
+        
+        // Usuwamy puste wiersze (np. jeśli jest trailing newline)
+        rows = rows.filter(row => row.trim() !== '');
 
         // Pierwszy wiersz to nagłówki
         const headers = rows[0].split(',');
@@ -37,15 +40,17 @@
         // Pozostałe wiersze to dane
         const bodyRows = rows.slice(1);
 
-        // (1) Filtrujemy wiersze tak, aby zawierały w kolumnie K wartość "Tak"
         // Kolumna K to indeks 10 (0=A, 1=B, ..., 10=K)
+        const COLUMN_K_INDEX = 10;
+
+        // Filtrujemy wiersze tak, aby w kolumnie K występowało "Tak"
         const filteredRows = bodyRows.filter(row => {
           const cols = row.split(',');
-          // Zwracamy true, jeśli w kolumnie K znajduje się "Tak"
-          return cols[10]?.trim() === 'Tak';
+          // Zwracamy true, jeśli w kolumnie K jest dokładnie "Tak"
+          return (cols[COLUMN_K_INDEX]?.trim() === 'Tak');
         });
 
-        // (2) Tworzymy tabelę
+        // Tworzymy tabelę
         const table = document.createElement('table');
 
         // Thead z nagłówkami
@@ -66,7 +71,7 @@
           const tr = document.createElement('tr');
           cols.forEach(colData => {
             const td = document.createElement('td');
-            td.textContent = colData;
+            td.textContent = colData.trim();
             tr.appendChild(td);
           });
           tbody.appendChild(tr);
