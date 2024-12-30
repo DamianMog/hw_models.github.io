@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lista modeli - główna</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      background-color: #f4f4f4;
+      padding: 20px;
+      text-align: center;
+    }
+    main {
+      margin: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center; /* wycentrowanie w poziomie */
+      gap: 30px;
+    }
+    .section-box {
+      text-align: center; /* wycentrowanie tekstu */
+    }
+    h2 {
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1em;
+      cursor: pointer;
+      border: 1px solid #aaa;
+      border-radius: 5px;
+      background-color: #ffffff;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    button:hover {
+      background-color: #007BFF;
+      color: #fff;
+      border-color: #007BFF;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Witamy na stronie z listą modeli do kupienia i do sprzedania</h1>
+    <p>Znajdziesz tu dwie sekcje: jedną z modelami, które chcemy kupić oraz drugą z modelami, które wystawiamy na sprzedaż.</p>
+  </header>
+
+  <main>
+    <!-- Sekcja: Lista modeli do kupienia -->
+    <div class="section-box">
+      <h2>Lista modeli, które chcę kupić:</h2>
+      <button onclick="window.location.href='/buy/'">Przejdź do listy (buy)</button>
+    </div>
+
+    <!-- Sekcja: Lista modeli do sprzedania -->
+    <div class="section-box">
+      <h2>Lista modeli, które chcę sprzedać:</h2>
+      <!-- Tutaj link do /sell/sell.html -->
+      <button onclick="window.location.href='/sell/sell.html'">Przejdź do listy (sell)</button>
+    </div>
+  </main>
+</body>
+</html>
