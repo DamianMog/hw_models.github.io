@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Modele na sprzedaż (z obsługą zdjęć i debugiem)</title>
+  <title>Modele na sprzedaż (z podglądem zdjęć i debugiem)</title>
   
   <style>
     /* Podstawowe style/reset */
@@ -92,13 +92,39 @@
     .model-photo {
       max-width: 80px;
       max-height: 80px;
-      cursor: pointer; /* jeśli chcesz klikalne zdjęcia do powiększenia */
+      cursor: pointer; /* miniatura jest klikalna */
+    }
+
+    /* ======= POPUP Z OBRASKIEM ======= */
+    #image-popup {
+      display: none; /* ukryte domyślnie */
+      position: fixed;
+      top: 0; left: 0; 
+      width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.8); 
+      justify-content: center; 
+      align-items: center;
+      z-index: 2000; /* powyżej innych elementów na stronie */
+    }
+    #image-popup img {
+      max-width: 90%;
+      max-height: 90%;
+      /* chcemy też, by kliknięcie w obrazek zamykało popup */
+      cursor: pointer;
+    }
+    #image-popup .close-button {
+      position: absolute;
+      top: 20px; right: 30px;
+      color: #fff;
+      font-size: 32px;
+      cursor: pointer;
+      user-select: none;
     }
   </style>
 </head>
 <body>
 
-  <h1>Lista modeli na sprzedaż (z obsługą zdjęć i debugiem)</h1>
+  <h1>Lista modeli na sprzedaż (z podglądem zdjęć)</h1>
 
   <!-- Kontener na tabelę z danymi -->
   <div id="table-container">
@@ -113,6 +139,12 @@
     </div>
   </div>
 
+  <!-- ====== POPUP DO POWIĘKSZANIA ZDJĘĆ ===== -->
+  <div id="image-popup">
+    <span class="close-button" id="popup-close">&times;</span>
+    <img id="popup-image" src="" alt="Photo fullscreen" />
+  </div>
+
   <script>
     /************************************************************
      * KONFIGURACJA KOLUMN
@@ -124,69 +156,55 @@
 
     // Nazwy nagłówków (12 kolumn)
     const HEADERS = [
-      'Series',    // 0
-      'Year',      // 1
-      'Toy #',     // 2
-      'Col. #',    // 3
-      'Casting',   // 4
-      'Set #',     // 5
-      'Price',     // 6
-      'szt',       // 7
-      'Photo 1',   // 8
-      'Photo 2',   // 9
-      'Wybierz',   // 10
-      'Ilość'      // 11
+      'Series',
+      'Year',
+      'Toy #',
+      'Col. #',
+      'Casting',
+      'Set #',
+      'Price',
+      'szt',
+      'Photo 1',
+      'Photo 2',
+      'Wybierz',
+      'Ilość'
     ];
 
-    // Które kolumny z CSV wypełniają pierwsze 8 kolumn?
+    // Kolumny z CSV do wypełnienia (8 kolumn):
     // [Series(0), Year(1), Toy #(3), Col.#(4), Casting(5), Set #(7), Price(11), szt(12)]
-    // Indeksy w CSV: 0,1,3,4,5,7,11,12
     const COLUMNS_FROM_CSV = [0, 1, 3, 4, 5, 7, 11, 12];
 
     // Mapa toyId -> { photo1, photo2 }
     const imagesMap = {};
 
-    // Funkcja do parsowania integera z fallbackiem
     function parseIntOr(val, def = 1) {
       const num = parseInt(val, 10);
       return isNaN(num) ? def : num;
     }
 
-    /************************************************************
-     * KONFIGURACJA DO POBIERANIA OBRAZKÓW Z GITHUB
-     ************************************************************/
+    /* ------ KONFIGURACJA POBIERANIA OBRAZKÓW Z GITHUB ------ */
     const repoOwner = "DamianMog";
     const repoName = "hw_models.github.io";
     const folderPath = "images";
     const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${folderPath}`;
 
-    // Najpierw pobieramy listę plików z GitHuba,
-    // by stworzyć imagesMap (toyId => photo1, photo2)
     fetch(apiUrl)
       .then(resp => {
         if (!resp.ok) throw new Error(`Błąd GitHub API: ${resp.status}`);
         return resp.json();
       })
       .then(files => {
-        // DEBUG: Wyświetlamy całą listę plików
         console.log("Pobrane pliki z GitHuba (folder images):", files);
 
         files.forEach(file => {
           if (file.type === "file" && file.name.match(/\.(jpg|jpeg|png|gif)$/i)) {
-            // np. "HTC83_1.png"
-            // usuwamy rozszerzenie
             const nameNoExt = file.name.replace(/\.(jpg|jpeg|png|gif)$/i, "");
-            // dzielimy po "_"
             const parts = nameNoExt.split("_");
-            
-            // DEBUG: Info o każdym pliku i wynikach split
             console.log("Plik oryginalny:", file.name, " -> parts:", parts);
 
             if (parts.length === 2) {
               const [toyIdRaw, seq] = parts;
-              // Usuwamy ewentualne spacje
               const toyId = toyIdRaw.trim();
-
               if ((seq === "1" || seq === "2") && toyId) {
                 if (!imagesMap[toyId]) {
                   imagesMap[toyId] = { photo1: null, photo2: null };
@@ -199,17 +217,15 @@
         });
 
         console.log("imagesMap =", imagesMap);
-        // Następnie pobierz CSV i zbuduj tabelę
         fetchAndBuildTable();
       })
       .catch(err => {
         console.error("Błąd podczas pobierania plików z GitHub:", err);
-        // Nawet jeśli błąd, spróbujmy wczytać tabelę CSV (bez zdjęć)
-        fetchAndBuildTable();
+        fetchAndBuildTable(); // Mimo błędu spróbujemy wczytać CSV
       });
 
     /************************************************************
-     * POBRANIE CSV I BUDOWA TABELI
+     * POBIERANIE CSV I BUDOWA TABELI
      ************************************************************/
     function fetchAndBuildTable() {
       fetch(csvUrl)
@@ -227,10 +243,8 @@
           if (allRows.length < 2) {
             throw new Error('CSV: brak danych lub za mało wierszy.');
           }
-          // Pierwszy wiersz to headery oryginalne => pomijamy
-          const bodyRows = allRows.slice(1);
 
-          // Filtrowanie Sell == "Tak" (kolumna 10)
+          const bodyRows = allRows.slice(1); // pomijamy pierwszy wiersz (headery)
           const filteredRows = bodyRows.filter(row => {
             const sellVal = (row[COLUMN_SELL] || '').trim().toLowerCase();
             return sellVal === 'tak';
@@ -270,12 +284,12 @@
         // Wypełnienie 8 kolumn z CSV
         COLUMNS_FROM_CSV.forEach((colIndex) => {
           const td = document.createElement('td');
-          td.textContent = (row[colIndex] || '').trim(); // usuwamy spacje
+          td.textContent = (row[colIndex] || '').trim();
           tr.appendChild(td);
         });
 
-        // Odczyt toyId (np. "HTC83") = kolumna 3 w CSV
-        const toyId = (row[3] || '').trim();
+        // Odczyt toyId
+        const toyId = (row[3] || '').trim(); // bo w CSV index 3 to "Toy #"
         console.log("toyId z CSV =", toyId);
 
         // Kolumna 8 => Photo1
@@ -285,6 +299,10 @@
           const img1 = document.createElement('img');
           img1.classList.add('model-photo');
           img1.src = imagesMap[toyId].photo1;
+          // Kliknięcie w zdjęcie => fullscreen
+          img1.addEventListener('click', () => {
+            showImagePopup(imagesMap[toyId].photo1);
+          });
           tdPhoto1.appendChild(img1);
         }
         tr.appendChild(tdPhoto1);
@@ -296,6 +314,10 @@
           const img2 = document.createElement('img');
           img2.classList.add('model-photo');
           img2.src = imagesMap[toyId].photo2;
+          // Kliknięcie => fullscreen
+          img2.addEventListener('click', () => {
+            showImagePopup(imagesMap[toyId].photo2);
+          });
           tdPhoto2.appendChild(img2);
         }
         tr.appendChild(tdPhoto2);
@@ -313,7 +335,6 @@
         const inputNumber = document.createElement('input');
         inputNumber.type = 'number';
         inputNumber.min = '1';
-        // kol. 12 w CSV to "szt"
         const sztValue = parseIntOr(row[12], 1);
         inputNumber.max = sztValue.toString();
         inputNumber.value = '1';
@@ -332,6 +353,35 @@
 
       // Początkowa aktualizacja
       updateSummary();
+    }
+
+    /************************************************************
+     * POPUP ZE ZDJĘCIEM (FULL SCREEN)
+     ************************************************************/
+    const imagePopup = document.getElementById('image-popup');
+    const popupImage = document.getElementById('popup-image');
+    const popupCloseBtn = document.getElementById('popup-close');
+
+    // Kliknięcie w "X" zamyka popup
+    popupCloseBtn.addEventListener('click', hideImagePopup);
+
+    // Kliknięcie w tło lub sam obrazek -> zamyka popup
+    imagePopup.addEventListener('click', hideImagePopup);
+
+    // ESC zamyka popup
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        hideImagePopup();
+      }
+    });
+
+    function showImagePopup(src) {
+      popupImage.src = src;
+      imagePopup.style.display = 'flex'; // widać overlay
+    }
+    function hideImagePopup() {
+      imagePopup.style.display = 'none';
+      popupImage.src = '';
     }
 
     /************************************************************
