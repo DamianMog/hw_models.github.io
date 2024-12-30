@@ -16,141 +16,101 @@
       background-color: #f5f5f5;
     }
   </style>
+  <!-- Wczytujemy bibliotekę SheetJS (XLSX) z CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-  <h1>Modele na sprzedaż (kolumna K = "Tak")</h1>
-
+  <h1>Modele na sprzedaż (filtr: kolumna K = "Tak")</h1>
+  
   <div id="table-container"></div>
-
+  
   <script>
-    const sheetHtmlUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pubhtml?gid=1713753991&single=true';
+    // Link do pliku XLSX opublikowanego z Google Sheets
+    const xlsxUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pub?output=xlsx';
 
-    // Kolumna K (A=0, B=1, C=2, ... K=10)
-    const COLUMN_K_INDEX = 10;
-    const VALUE_TO_MATCH = 'tak'; // filtr => "tak" (małe litery)
+    // Definicje kolumn
+    // A=0, B=1, C=2, ..., K=10, L=11, M=12, N=13, O=14 ...
+    const COLUMN_K_INDEX = 10;          // K
+    const VALUE_TO_MATCH = 'tak';       // Filtr (małe litery)
+    const HIDDEN_COLUMNS = [2, 8, 9];   // C(2), I(8), J(9)
+    const MAX_COLUMN_INDEX = 13;        // Pow. kolumny N(13) ukrywamy
 
-    // Ukrywane kolumny (C=2, I=8, J=9) i wszystko powyżej N=13
-    const HIDDEN_COLUMNS = [2, 8, 9];
-    const MAX_COLUMN_INDEX = 13;
+    fetch(xlsxUrl)
+      .then(response => response.arrayBuffer()) // pobieramy plik XLSX jako ArrayBuffer
+      .then(arrayBuffer => {
+        // Odczytujemy plik XLSX
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
 
-    fetch(sheetHtmlUrl)
-      .then(response => response.text())
-      .then(htmlString => {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlString, 'text/html');
+        // Wybieramy nazwę pierwszego arkusza (lub innego, jeśli trzeba)
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
 
-        // Wybieramy tabelę, w której naprawdę są dane
-        const tables = doc.querySelectorAll('table');
-        console.log('Znalezione tabele:', tables);
-        const originalTable = tables[tables.length - 1];
-        if (!originalTable) {
-          throw new Error('Nie znaleziono tabeli z danymi.');
+        // Konwertujemy arkusz na dwuwymiarową tablicę (array of arrays)
+        // header: 1 => nie traktuje pierwszego wiersza jako klucze obiektu,
+        // tylko zwraca wszystko jako tablicę
+        const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        if (data.length === 0) {
+          throw new Error('Arkusz jest pusty lub nie ma danych.');
         }
 
-        let thead = originalTable.querySelector('thead');
-        let tbody = originalTable.querySelector('tbody');
+        // Pierwszy wiersz w 'data' to nagłówki (tablica strings)
+        const headers = data[0];
+        // Pozostałe wiersze to dane
+        const rows = data.slice(1);
 
-        if (!thead) {
-          // Jeśli z jakiegoś powodu <thead> nie istnieje
-          thead = document.createElement('thead');
-          originalTable.insertBefore(thead, tbody);
-        }
+        // Filtrujemy wiersze => kolumna K (index 10) == "Tak"
+        // Uwaga: sprawdzamy, czy istnieje dana kolumna, i czy wartości są stringami.
+        const filteredRows = rows.filter(row => {
+          // row to tablica [col0, col1, col2, ...]
+          const cellValue = (row[COLUMN_K_INDEX] || '').toString().trim().toLowerCase();
+          return cellValue === VALUE_TO_MATCH;
+        });
 
-        // Sprawdzamy, czy <thead> jest pusty (Google często go daje, ale bez niczego w środku)
-        const hasHeadTh = thead.querySelectorAll('th').length > 0;
+        // Teraz budujemy tabelę HTML
+        const table = document.createElement('table');
 
-        if (!hasHeadTh) {
-          // Szukamy pierwszego wiersza w <tbody>, który ma "Series", "Year" itp.
-          // lub zawiera TH. Tutaj przyjmujemy, że to **pierwszy** wiersz z TH albo typowymi nazwami kolumn.
-          const candidateHeaderRow = Array.from(tbody.querySelectorAll('tr'))
-            .find(tr => tr.querySelectorAll('th').length > 0 || tr.innerText.includes('Series') || tr.innerText.includes('Year'));
+        // === Nagłówki ===
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
 
-          if (candidateHeaderRow) {
-            // Przenosimy go do <thead>
-            tbody.removeChild(candidateHeaderRow);
-
-            // Zamieniamy wszystkie <td> w tym wierszu na <th> (o ile Google wrzuciło tam <td>)
-            const cells = candidateHeaderRow.querySelectorAll('td');
-            cells.forEach(td => {
-              const th = document.createElement('th');
-              th.innerHTML = td.innerHTML;
-              // Skopiuj klasy, atrybuty w razie potrzeby:
-              th.className = td.className;
-              // Zamień <td> na <th> w DOM:
-              td.replaceWith(th);
-            });
-
-            // (Opcjonalnie) usuń pierwszą komórkę, jeśli to ta z numerem wiersza (np. "1")
-            const firstCell = candidateHeaderRow.querySelector('th.row-headers-background');
-            if (firstCell) {
-              candidateHeaderRow.removeChild(firstCell);
-            }
-
-            thead.appendChild(candidateHeaderRow);
-          }
-        }
-
-        // Mamy już thead z właściwym wierszem nagłówkowym (miejmy nadzieję)
-
-        // --- FILTRUJEMY wiersze wg kolumny K == "Tak" ---
-        const allRows = tbody.querySelectorAll('tr');
-        const filteredRows = [];
-        allRows.forEach(tr => {
-          const cells = tr.querySelectorAll('td');
-          // Pomijamy, jeśli to wiersz pusty albo ma za mało kolumn
-          if (cells.length > COLUMN_K_INDEX) {
-            const cellValue = cells[COLUMN_K_INDEX].innerText.trim().toLowerCase();
-            if (cellValue === VALUE_TO_MATCH) {
-              filteredRows.push(tr);
-            }
+        // Przechodzimy przez 'headers' od lewej do prawej
+        // Usuwamy kolumny C(2), I(8), J(9), > N(13)
+        headers.forEach((headerText, index) => {
+          if (index <= MAX_COLUMN_INDEX && !HIDDEN_COLUMNS.includes(index)) {
+            const th = document.createElement('th');
+            th.textContent = headerText || ''; 
+            headerRow.appendChild(th);
           }
         });
 
-        // === Budujemy nową tabelę ===
-        const newTable = document.createElement('table');
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
 
-        // 1) Klonujemy thead
-        const clonedThead = thead.cloneNode(true);
+        // === Dane (tbody) ===
+        const tbody = document.createElement('tbody');
 
-        // Ukrywamy kolumny w nagłówku
-        const headerRow = clonedThead.querySelector('tr');
-        if (headerRow) {
-          const headerCells = headerRow.querySelectorAll('th');
-          for (let i = headerCells.length - 1; i >= 0; i--) {
-            if (i > MAX_COLUMN_INDEX || HIDDEN_COLUMNS.includes(i)) {
-              headerRow.removeChild(headerCells[i]);
+        filteredRows.forEach(row => {
+          const tr = document.createElement('tr');
+          // row to np. ["VW", "2020", "Tak", ...] (zależnie od arkusza)
+          row.forEach((cellValue, colIndex) => {
+            if (colIndex <= MAX_COLUMN_INDEX && !HIDDEN_COLUMNS.includes(colIndex)) {
+              const td = document.createElement('td');
+              td.textContent = (cellValue === undefined) ? '' : cellValue;
+              tr.appendChild(td);
             }
-          }
-        }
-        newTable.appendChild(clonedThead);
-
-        // 2) Tworzymy nowe <tbody> z przefiltrowanymi i przyciętymi kolumnami
-        const newTbody = document.createElement('tbody');
-        filteredRows.forEach(oldRow => {
-          const newRow = oldRow.cloneNode(true);
-          const newCells = newRow.querySelectorAll('td');
-
-          // Usuwamy kolumny C(2), I(8), J(9) i >N(13)
-          for (let i = newCells.length - 1; i >= 0; i--) {
-            if (i > MAX_COLUMN_INDEX || HIDDEN_COLUMNS.includes(i)) {
-              newRow.removeChild(newCells[i]);
-            }
-          }
-
-          // (Opcjonalnie) jeśli pierwszy cell to row-header
-          const rowHeaderCell = newRow.querySelector('th.row-headers-background');
-          if (rowHeaderCell) {
-            newRow.removeChild(rowHeaderCell);
-          }
-
-          newTbody.appendChild(newRow);
+          });
+          tbody.appendChild(tr);
         });
-        newTable.appendChild(newTbody);
 
-        // Wstawiamy gotową tabelę do strony
-        document.getElementById('table-container').appendChild(newTable);
+        table.appendChild(tbody);
+
+        // Wstawiamy tabelę do kontenera w HTML
+        document.getElementById('table-container').appendChild(table);
       })
-      .catch(err => console.error('Błąd przy pobieraniu/parowaniu HTML:', err));
+      .catch(error => {
+        console.error('Błąd podczas pobierania / parsowania XLSX:', error);
+      });
   </script>
 </body>
 </html>
