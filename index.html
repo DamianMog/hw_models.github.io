@@ -19,20 +19,18 @@
 </head>
 <body>
   <h1>Modele na sprzedaż (kolumna K = "Tak")</h1>
-  
+
   <div id="table-container"></div>
-  
+
   <script>
-    // Link do opublikowanej strony HTML z Google Sheets
     const sheetHtmlUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pubhtml?gid=1713753991&single=true';
 
-    // Kolumna K (A=0, B=1, C=2, ..., K=10)
-    const COLUMN_K_INDEX = 10;   
-    const VALUE_TO_MATCH = 'tak'; // "tak" (bez względu na wielkość liter)
+    // Kolumna K (A=0, B=1, C=2, ... K=10)
+    const COLUMN_K_INDEX = 10;
+    const VALUE_TO_MATCH = 'tak'; // filtr => "tak" (małe litery)
 
-    // Kolumny do ukrycia
-    const HIDDEN_COLUMNS = [2, 8, 9];  // C(2), I(8), J(9)
-    // Maksymalny indeks kolumny, który chcemy pokazać (N = 13)
+    // Ukrywane kolumny (C=2, I=8, J=9) i wszystko powyżej N=13
+    const HIDDEN_COLUMNS = [2, 8, 9];
     const MAX_COLUMN_INDEX = 13;
 
     fetch(sheetHtmlUrl)
@@ -40,66 +38,81 @@
       .then(htmlString => {
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlString, 'text/html');
-        
-        // Znajdź wszystkie tabele
+
+        // Wybieramy tabelę, w której naprawdę są dane
         const tables = doc.querySelectorAll('table');
         console.log('Znalezione tabele:', tables);
-
-        // Wybierz właściwą tabelę (często ostatnia w dokumencie):
         const originalTable = tables[tables.length - 1];
         if (!originalTable) {
           throw new Error('Nie znaleziono tabeli z danymi.');
         }
 
-        // Pobierz <thead> i <tbody>
         let thead = originalTable.querySelector('thead');
         let tbody = originalTable.querySelector('tbody');
 
-        // Jeśli thead istnieje, sprawdź, czy rzeczywiście zawiera TH z danymi
-        const thInThead = thead ? thead.querySelectorAll('th') : null;
-        const hasValidHeaders = thInThead && thInThead.length > 0;
+        if (!thead) {
+          // Jeśli z jakiegoś powodu <thead> nie istnieje
+          thead = document.createElement('thead');
+          originalTable.insertBefore(thead, tbody);
+        }
 
-        // Jeżeli thead jest pusty lub nie istnieje, a wiersz nagłówkowy (z <th>) jest w tbody:
-        if (!hasValidHeaders) {
-          // Szukamy pierwszego wiersza w TBODY, który ma <th> (to najpewniej nasz nagłówek)
-          const headerRowInTbody = tbody.querySelector('tr th')?.closest('tr');
-          if (headerRowInTbody) {
-            // Jeśli thead nie istnieje, stwórzmy go
-            if (!thead) {
-              thead = document.createElement('thead');
-              // Wstawiamy nowy thead przed tbody w strukturze oryginalnej tabeli
-              originalTable.insertBefore(thead, tbody);
+        // Sprawdzamy, czy <thead> jest pusty (Google często go daje, ale bez niczego w środku)
+        const hasHeadTh = thead.querySelectorAll('th').length > 0;
+
+        if (!hasHeadTh) {
+          // Szukamy pierwszego wiersza w <tbody>, który ma "Series", "Year" itp.
+          // lub zawiera TH. Tutaj przyjmujemy, że to **pierwszy** wiersz z TH albo typowymi nazwami kolumn.
+          const candidateHeaderRow = Array.from(tbody.querySelectorAll('tr'))
+            .find(tr => tr.querySelectorAll('th').length > 0 || tr.innerText.includes('Series') || tr.innerText.includes('Year'));
+
+          if (candidateHeaderRow) {
+            // Przenosimy go do <thead>
+            tbody.removeChild(candidateHeaderRow);
+
+            // Zamieniamy wszystkie <td> w tym wierszu na <th> (o ile Google wrzuciło tam <td>)
+            const cells = candidateHeaderRow.querySelectorAll('td');
+            cells.forEach(td => {
+              const th = document.createElement('th');
+              th.innerHTML = td.innerHTML;
+              // Skopiuj klasy, atrybuty w razie potrzeby:
+              th.className = td.className;
+              // Zamień <td> na <th> w DOM:
+              td.replaceWith(th);
+            });
+
+            // (Opcjonalnie) usuń pierwszą komórkę, jeśli to ta z numerem wiersza (np. "1")
+            const firstCell = candidateHeaderRow.querySelector('th.row-headers-background');
+            if (firstCell) {
+              candidateHeaderRow.removeChild(firstCell);
             }
-            // Przenosimy wiersz z TBODY -> THEAD
-            tbody.removeChild(headerRowInTbody);
-            thead.appendChild(headerRowInTbody);
+
+            thead.appendChild(candidateHeaderRow);
           }
         }
 
-        // Teraz thead powinien mieć w sobie wiersz nagłówków
-        // Wiersze danych powinny pozostać w tbody
-        const allRows = tbody.querySelectorAll('tr');
+        // Mamy już thead z właściwym wierszem nagłówkowym (miejmy nadzieję)
 
-        // --- FILTR: Kolumna K == "Tak" ---
-        // Zbierzmy te wiersze, które spełniają warunek
+        // --- FILTRUJEMY wiersze wg kolumny K == "Tak" ---
+        const allRows = tbody.querySelectorAll('tr');
         const filteredRows = [];
         allRows.forEach(tr => {
           const cells = tr.querySelectorAll('td');
+          // Pomijamy, jeśli to wiersz pusty albo ma za mało kolumn
           if (cells.length > COLUMN_K_INDEX) {
-            const val = cells[COLUMN_K_INDEX].innerText.trim().toLowerCase();
-            if (val === VALUE_TO_MATCH) {
+            const cellValue = cells[COLUMN_K_INDEX].innerText.trim().toLowerCase();
+            if (cellValue === VALUE_TO_MATCH) {
               filteredRows.push(tr);
             }
           }
         });
 
-        // ===== Budujemy nową tabelę =====
+        // === Budujemy nową tabelę ===
         const newTable = document.createElement('table');
 
-        // 1) Klonujemy thead (już z poprawnym nagłówkiem?)
+        // 1) Klonujemy thead
         const clonedThead = thead.cloneNode(true);
 
-        // Usuwamy niechciane kolumny w thead (np. C, I, J oraz > N)
+        // Ukrywamy kolumny w nagłówku
         const headerRow = clonedThead.querySelector('tr');
         if (headerRow) {
           const headerCells = headerRow.querySelectorAll('th');
@@ -109,26 +122,32 @@
             }
           }
         }
-
         newTable.appendChild(clonedThead);
 
-        // 2) Tworzymy nowe <tbody> z przefiltrowanymi wierszami
+        // 2) Tworzymy nowe <tbody> z przefiltrowanymi i przyciętymi kolumnami
         const newTbody = document.createElement('tbody');
         filteredRows.forEach(oldRow => {
-          const rowClone = oldRow.cloneNode(true);
-          const cells = rowClone.querySelectorAll('td');
+          const newRow = oldRow.cloneNode(true);
+          const newCells = newRow.querySelectorAll('td');
 
-          // Usuwamy kolumny C(2), I(8), J(9) i wszystko powyżej N(13)
-          for (let i = cells.length - 1; i >= 0; i--) {
+          // Usuwamy kolumny C(2), I(8), J(9) i >N(13)
+          for (let i = newCells.length - 1; i >= 0; i--) {
             if (i > MAX_COLUMN_INDEX || HIDDEN_COLUMNS.includes(i)) {
-              rowClone.removeChild(cells[i]);
+              newRow.removeChild(newCells[i]);
             }
           }
-          newTbody.appendChild(rowClone);
+
+          // (Opcjonalnie) jeśli pierwszy cell to row-header
+          const rowHeaderCell = newRow.querySelector('th.row-headers-background');
+          if (rowHeaderCell) {
+            newRow.removeChild(rowHeaderCell);
+          }
+
+          newTbody.appendChild(newRow);
         });
         newTable.appendChild(newTbody);
 
-        // Wyświetlamy nową tabelę
+        // Wstawiamy gotową tabelę do strony
         document.getElementById('table-container').appendChild(newTable);
       })
       .catch(err => console.error('Błąd przy pobieraniu/parowaniu HTML:', err));
