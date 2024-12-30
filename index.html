@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>CSV z Google Sheets w tabeli</title>
+</head>
+<body>
+  <h1>Dane z arkusza Google Sheets</h1>
+  <!-- Kontener, w którym umieścimy wygenerowaną tabelę -->
+  <div id="table-container"></div>
+  
+  <script>
+    // Link do Twojego CSV (udostępnionego z Google Sheets)
+    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pub?gid=1713753991&single=true&output=csv';
+
+    fetch(csvUrl)
+      .then(response => response.text()) // Odbieramy plik jako tekst
+      .then(data => {
+        // Rozbijamy plik CSV na wiersze
+        const rows = data.trim().split('\n');
+
+        // Pierwszy wiersz to nagłówki kolumn
+        const headers = rows[0].split(',');
+
+        // Pozostałe wiersze to dane
+        const bodyRows = rows.slice(1);
+
+        // Tworzymy tabelę
+        const table = document.createElement('table');
+        table.style.borderCollapse = 'collapse';
+        table.border = "1"; // Prosta ramka wokół tabeli
+
+        // Tworzymy thead z nagłówkami
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        headers.forEach(col => {
+          const th = document.createElement('th');
+          th.textContent = col;
+          headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        // Tworzymy tbody z zawartością
+        const tbody = document.createElement('tbody');
+        bodyRows.forEach(row => {
+          // Rozbijamy każdy wiersz na kolumny
+          const cols = row.split(',');
+          const tr = document.createElement('tr');
+          cols.forEach(colData => {
+            const td = document.createElement('td');
+            td.textContent = colData;
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+
+        // Wstawiamy tabelę do kontenera w HTML
+        document.getElementById('table-container').appendChild(table);
+      })
+      .catch(error => {
+        console.error('Błąd podczas pobierania CSV:', error);
+      });
+  </script>
+</body>
+</html>
