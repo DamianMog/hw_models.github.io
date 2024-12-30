@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Modele na sprzedaż</title>
   <style>
     table {
@@ -18,102 +18,121 @@
   </style>
 </head>
 <body>
-  <h1>Modele na sprzedaż - (kolumna K = "Tak")</h1>
+  <h1>Modele na sprzedaż (kolumna K = "Tak")</h1>
   
   <div id="table-container"></div>
   
   <script>
-    // Nowy link do pliku jako strona HTML (pubhtml)
     const sheetHtmlUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pubhtml?gid=1713753991&single=true';
 
-    // Kolumna K to indeks 10 (A=0, B=1, C=2, ..., K=10)
-    const COLUMN_K_INDEX = 10;
-    // Szukamy dokładnie "Tak" (niezależnie od wielkości liter)
-    const VALUE_TO_MATCH = 'tak';
-
-    // Kolumny, które chcemy ukryć (lub nie wyświetlać w ogóle)
-    const HIDDEN_COLUMNS = [2, 8, 9]; // C, I, J
-    // Nie wyświetlamy nic powyżej kolumny o indeksie 13 (N)
-    const MAX_COLUMN_INDEX = 13;
+    // Konfiguracja
+    const COLUMN_K_INDEX = 10;         // K = 10
+    const VALUE_TO_MATCH = 'tak';      // filtr na kolumnę K
+    const HIDDEN_COLUMNS = [2, 8, 9];  // ukrywamy C(2), I(8), J(9)
+    const MAX_COLUMN_INDEX = 13;       // powyżej N (13) usuwamy
 
     fetch(sheetHtmlUrl)
       .then(response => response.text())
       .then(htmlString => {
-        // (1) Parsujemy całą stronę HTML
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlString, 'text/html');
+        
+        // Znajdź wszystkie tabele opublikowane przez Google
+        const tables = doc.querySelectorAll('table');
+        console.log('Znalezione tabele:', tables);
 
-        // (2) Wyszukujemy oryginalną tabelę w dokumencie
-        const originalTable = doc.querySelector('table');
+        // Przykład: używamy OSTATNIEJ tabeli
+        // (Często tam są właściwe dane, ale zależy od układu – sprawdź w swojej publikacji)
+        const originalTable = tables[tables.length - 1];
         if (!originalTable) {
-          throw new Error('Nie znaleziono tabeli w pobranym dokumencie.');
+          throw new Error('Nie znaleziono docelowej tabeli z danymi.');
         }
 
-        // (3) Wyciągamy thead (nagłówki)
-        const thead = originalTable.querySelector('thead');
-        // Wyciągamy wiersze z body
-        const rows = originalTable.querySelectorAll('tbody tr');
+        // Spróbujmy odczytać thead
+        let thead = originalTable.querySelector('thead');
+        let tbody = originalTable.querySelector('tbody');
 
-        // (4) Przefiltrowanie wierszy pod kątem kolumny K == "Tak"
+        // Jeśli thead nie istnieje lub jest pusty w th, to załóżmy, że
+        // pierwszy wiersz tbody to wiersz nagłówkowy.
+        if (!thead || thead.querySelectorAll('th').length === 0) {
+          thead = document.createElement('thead');
+          const firstRow = tbody.querySelector('tr');
+          if (!firstRow) {
+            throw new Error('Brak wierszy w tabeli!');
+          }
+          // Stwórz nowy wiersz nagłówkowy z komórek td → th
+          const newHeaderRow = document.createElement('tr');
+          const cells = firstRow.querySelectorAll('td');
+
+          cells.forEach(td => {
+            const th = document.createElement('th');
+            th.innerText = td.innerText;
+            newHeaderRow.appendChild(th);
+          });
+
+          // Dodaj nowy wiersz do thead
+          thead.appendChild(newHeaderRow);
+
+          // Usuń pierwszy wiersz z tbody, by się nie powtórzył w danych
+          tbody.removeChild(firstRow);
+        }
+
+        // Teraz mamy pewność, że thead zawiera nagłówki
+        // a w tbody są dane
+
+        // Filtrujemy wiersze na "kolumna K = Tak"
         const filteredRows = [];
-        rows.forEach(tr => {
+        const allRows = tbody.querySelectorAll('tr');
+        allRows.forEach(tr => {
           const cells = tr.querySelectorAll('td');
           if (cells.length > COLUMN_K_INDEX) {
-            const cellValue = cells[COLUMN_K_INDEX].innerText.trim().toLowerCase();
-            if (cellValue === VALUE_TO_MATCH) {
+            const val = cells[COLUMN_K_INDEX].innerText.trim().toLowerCase();
+            if (val === VALUE_TO_MATCH) {
               filteredRows.push(tr);
             }
           }
         });
 
-        // (5) Budujemy nową tabelę
+        // Tworzymy nową tabelę
         const newTable = document.createElement('table');
 
-        // ===== Obsługa thead (nagłówki) =====
-        if (thead) {
-          // Sklonuj oryginalny thead
-          const clonedThead = thead.cloneNode(true);
-          // Ukryj niechciane kolumny w thead
-          const headerRow = clonedThead.querySelector('tr');
-          if (headerRow) {
-            const headerCells = headerRow.querySelectorAll('th');
-            // Idziemy od końca, by usuwać poprawnie (lub ukrywać)
-            for (let i = headerCells.length - 1; i >= 0; i--) {
-              if (i > MAX_COLUMN_INDEX || HIDDEN_COLUMNS.includes(i)) {
-                headerRow.removeChild(headerCells[i]);
-              }
+        // 1) Klonujemy thead (już z prawidłowym wierszem nagłówkowym)
+        const clonedThead = thead.cloneNode(true);
+
+        // --- USUWANIE/UKRYWANIE KOLUMN W NAGŁÓWKU ---
+        const headerRow = clonedThead.querySelector('tr');
+        if (headerRow) {
+          const headerCells = headerRow.querySelectorAll('th');
+          // Przechodzimy od końca, by usuwać poprawnie
+          for (let i = headerCells.length - 1; i >= 0; i--) {
+            if (i > MAX_COLUMN_INDEX || HIDDEN_COLUMNS.includes(i)) {
+              headerRow.removeChild(headerCells[i]);
             }
           }
-          newTable.appendChild(clonedThead);
         }
 
-        // ===== Obsługa tbody (filtr + ukrywanie kolumn) =====
-        const newTbody = document.createElement('tbody');
+        newTable.appendChild(clonedThead);
 
+        // 2) Tworzymy tbody z przefiltrowanymi wierszami
+        const newTbody = document.createElement('tbody');
         filteredRows.forEach(oldRow => {
-          // Klonujemy wiersz
-          const newRow = oldRow.cloneNode(true);
-          const newCells = newRow.querySelectorAll('td');
+          const rowClone = oldRow.cloneNode(true);
+          const cells = rowClone.querySelectorAll('td');
           
-          // Ukrywamy/ usuwamy niechciane kolumny
-          for (let i = newCells.length - 1; i >= 0; i--) {
+          // usuwamy/ukrywamy kolumny C(2), I(8), J(9), > N(13)
+          for (let i = cells.length - 1; i >= 0; i--) {
             if (i > MAX_COLUMN_INDEX || HIDDEN_COLUMNS.includes(i)) {
-              newRow.removeChild(newCells[i]);
+              rowClone.removeChild(cells[i]);
             }
           }
-
-          // Dodajemy przefiltrowany i przycięty wiersz do newTbody
-          newTbody.appendChild(newRow);
+          newTbody.appendChild(rowClone);
         });
-        
         newTable.appendChild(newTbody);
-        
-        // (6) Dodajemy gotową tabelę do strony
+
+        // Wstawiamy tabelę na stronę
         document.getElementById('table-container').appendChild(newTable);
       })
-      .catch(err => {
-        console.error('Błąd przy pobieraniu/parowaniu HTML:', err);
-      });
+      .catch(err => console.error('Błąd przy pobieraniu/parowaniu HTML:', err));
   </script>
 </body>
 </html>
