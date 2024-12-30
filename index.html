@@ -1,204 +1,219 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Modele na sprzedaż</title>
+  
   <style>
-    /* Wycentrowanie strony i tła */
-    html, body {
-      margin: 0; 
-      padding: 0;
-      height: 100%;
-      font-family: sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start; 
-      background-color: #f0f0f0;
+    /* Podstawowe style/reset */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    /* Zapobieganie zaznaczaniu elementów */
+    tr, img {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      -khtml-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
     }
 
-    #table-container {
-      width: 95%;
+    /* Tabela z listą modeli */
+    table {
+      border-collapse: collapse;
+      width: 100%;
       margin-top: 20px;
     }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      table-layout: fixed;      /* stały rozkład kolumn */
-      white-space: nowrap;      /* wyłącza zawijanie tekstu */
-      background-color: #fff;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      text-align: center;       /* wyśrodkowanie tekstu w komórkach */
-    }
-
     th, td {
-      border: 1px solid #ccc;
-      padding: 8px 12px;
-      vertical-align: middle;   /* wyśrodkowanie w pionie */
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+      /* Pozwala na zawijanie tekstu */
+      white-space: normal;
     }
-
     th {
-      background-color: #e0e0e0;
-      font-weight: 600;
+      background-color: #f4f4f4;
     }
 
-    /* Stylowanie checkboxa: większy rozmiar, wycentrowanie */
-    .checkbox-cell {
-      display: flex; 
-      justify-content: center; 
-      align-items: center;
-    }
-    .checkbox-cell input[type="checkbox"] {
-      width: 20px; 
-      height: 20px; 
+    /*
+     * Możesz usunąć style do obrazków, jeśli nie używasz kolumn ze zdjęciami
+     * Zachowujemy je, jeśli w przyszłości chciałbyś wstawić zdjęcia
+     */
+    img {
+      max-width: 100px;
       cursor: pointer;
     }
 
-    /* Stylowanie input (kolumna Ilość) */
+    /* Wyróżnienie wiersza wybranego (jeśli potrzebne) */
+    tr.selected {
+      background-color: #caf0f8;
+    }
+
+    /* Prosty styl input[type="checkbox"] i input[type="number"] */
+    input[type="checkbox"] {
+      transform: scale(1.3); /* powiększamy checkbox */
+      cursor: pointer;
+    }
     input[type="number"] {
-      width: 70px;
+      width: 80px;
       text-align: center;
-      padding: 4px;
     }
   </style>
 </head>
 <body>
-  <div id="table-container"></div>
+
+  <h1>Lista modeli na sprzedaż</h1>
+
+  <!-- Kontener, w którym wstawimy tabelę z CSV -->
+  <div id="table-container">
+    <p>Wczytywanie danych...</p>
+  </div>
 
   <script>
-    // URL do CSV (z parametrem output=csv)
+    /*********************************************************
+     * KONFIGURACJA
+     *********************************************************/
+    // URL do CSV (z parametrem ?output=csv)
     const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pub?gid=1713753991&single=true&output=csv';
 
-    // Kolumna Sell (index 10) musi mieć wartość "Tak"
-    const COLUMN_SELL_INDEX = 10;
+    // Indeks kolumny Sell (filtr == "Tak")
+    const COLUMN_SELL = 10;
 
-    // Indeksy kolumn do wyświetlenia:
-    // 0=Series, 1=Year, 3=Toy#, 4=Col.#, 5=Casting, 6=Notes, 7=Set#, 11=Price, 12=szt
-    const COLUMNS_TO_SHOW = [0, 1, 3, 4, 5, 6, 7, 11, 12];
+    // Kolumny do wyświetlenia (bez Notes (6)):
+    // [0=Series, 1=Year, 3=Toy #, 4=Col.#, 5=Casting, 7=Set #, 11=Price, 12=szt]
+    const COLUMNS_TO_SHOW = [0, 1, 3, 4, 5, 7, 11, 12];
 
-    // Etykiety nagłówków (w kolejności COLUMNS_TO_SHOW)
-    const HEADERS_NAMES = [
+    // Etykiety nagłówków w tej samej kolejności co COLUMNS_TO_SHOW
+    const HEADERS = [
       'Series',
       'Year',
       'Toy #',
       'Col. #',
       'Casting',
-      'Notes',
       'Set #',
       'Price',
       'szt'
     ];
 
-    // Funkcja pomocnicza do parsowania integera
-    function parseIntOr(val, defaultVal = 1) {
-      const parsed = parseInt(val, 10);
-      return isNaN(parsed) ? defaultVal : parsed;
+    /*********************************************************
+     * FUNKCJE POMOCNICZE
+     *********************************************************/
+    function parseIntOr(val, def = 1) {
+      const num = parseInt(val, 10);
+      return isNaN(num) ? def : num;
     }
 
+    /*********************************************************
+     * GŁÓWNA LOGIKA: POBRANIE CSV, PARSOWANIE, FILTROWANIE
+     *********************************************************/
     fetch(csvUrl)
-      .then(response => response.text())
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Błąd sieci: ${response.status}`);
+        }
+        return response.text();
+      })
       .then(csvData => {
-        // Rozbijamy na wiersze i usuwamy ewentualne puste
+        // Podział na wiersze, usuwamy puste
         const lines = csvData.split('\n')
           .map(line => line.trim())
           .filter(line => line !== '');
 
-        // Dzielimy każdą linię po przecinku (proste założenie CSV bez przecinków w wartościach)
+        // Każdy wiersz => tablica kolumn (split po przecinku)
         const allRows = lines.map(line => line.split(','));
 
         if (allRows.length < 2) {
-          throw new Error('Zbyt mało wierszy w CSV.');
+          throw new Error('CSV: za mało wierszy (brak danych).');
         }
 
-        // Pierwszy wiersz to nagłówki (których i tak zaraz nie użyjemy), 
-        // a bodyRows to reszta wierszy
+        // Pierwszy wiersz - oryginalne nagłówki (tu nieużywane)
+        // Drugi i dalsze wiersze - faktyczne dane
         const bodyRows = allRows.slice(1);
 
-        // --- FILTR: wyświetlamy tylko wiersze, gdzie Sell == "Tak" ---
+        // FILTR: Tylko wiersze, gdzie kolumna SELL (10) == "Tak" (ignoreCase)
         const filteredRows = bodyRows.filter(row => {
-          // row[10] => kolumna Sell
-          const sellValue = (row[COLUMN_SELL_INDEX] || '').toLowerCase().trim();
-          return (sellValue === 'tak');
+          const sellVal = (row[COLUMN_SELL] || '').trim().toLowerCase();
+          return sellVal === 'tak';
         });
 
-        // Budowa tabeli HTML
+        // Tworzymy tabelę
         const table = document.createElement('table');
 
-        // === THEAD ===
+        // THEAD
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
 
-        // Tworzymy nagłówki wg HEADERS_NAMES
-        HEADERS_NAMES.forEach(name => {
+        // Dodajemy nagłówki (z HEADERS)
+        HEADERS.forEach(h => {
           const th = document.createElement('th');
-          th.textContent = name;
+          th.textContent = h;
           headerRow.appendChild(th);
         });
 
-        // Dodajemy 2 nowe kolumny (Wybierz, Ilość)
-        const thWybierz = document.createElement('th');
-        thWybierz.textContent = 'Wybierz';
-        headerRow.appendChild(thWybierz);
+        // Dodatkowe 2 kolumny: "Wybierz" i "Ilość"
+        const thSelect = document.createElement('th');
+        thSelect.textContent = 'Wybierz';
+        headerRow.appendChild(thSelect);
 
-        const thIlosc = document.createElement('th');
-        thIlosc.textContent = 'Ilość';
-        headerRow.appendChild(thIlosc);
+        const thQty = document.createElement('th');
+        thQty.textContent = 'Ilość';
+        headerRow.appendChild(thQty);
 
         thead.appendChild(headerRow);
         table.appendChild(thead);
 
-        // === TBODY ===
+        // TBODY
         const tbody = document.createElement('tbody');
 
-        // Generujemy wiersze
         filteredRows.forEach(row => {
           const tr = document.createElement('tr');
 
-          // Dla każdej z kolumn w COLUMNS_TO_SHOW
-          COLUMNS_TO_SHOW.forEach(colIndex => {
+          // Wypełniamy kolumny wg COLUMNS_TO_SHOW
+          COLUMNS_TO_SHOW.forEach(index => {
             const td = document.createElement('td');
-            td.textContent = row[colIndex] || '';
+            td.textContent = row[index] || '';
             tr.appendChild(td);
           });
 
           // 1) Kolumna "Wybierz" (checkbox)
-          const tdCheck = document.createElement('td');
-          tdCheck.classList.add('checkbox-cell'); 
+          const tdSelect = document.createElement('td');
           const checkbox = document.createElement('input');
           checkbox.type = 'checkbox';
-          tdCheck.appendChild(checkbox);
-          tr.appendChild(tdCheck);
+          tdSelect.appendChild(checkbox);
+          tr.appendChild(tdSelect);
 
           // 2) Kolumna "Ilość" (input number)
-          const tdNumber = document.createElement('td');
+          const tdQty = document.createElement('td');
           const inputNumber = document.createElement('input');
           inputNumber.type = 'number';
           inputNumber.min = '1';
 
-          // Ustalamy max na wartość z kolumny 'szt' (index 12)
+          // max = wartość w kolumnie 12 (szt), jeśli prawidłowa
           const sztValue = parseIntOr(row[12], 1);
-          if (sztValue >= 1) {
-            inputNumber.max = sztValue.toString();
-          } else {
-            inputNumber.max = '1';
-          }
-          // Domyślna wartość
+          inputNumber.max = sztValue.toString();
           inputNumber.value = '1';
 
-          tdNumber.appendChild(inputNumber);
-          tr.appendChild(tdNumber);
+          tdQty.appendChild(inputNumber);
+          tr.appendChild(tdQty);
 
           tbody.appendChild(tr);
         });
 
         table.appendChild(tbody);
 
-        // Wstawiamy tabelę do kontenera
+        // Wyświetlamy
         const container = document.getElementById('table-container');
-        container.innerHTML = ''; // wyczyszczenie
+        container.innerHTML = '';  // czyścimy ewentualne info
         container.appendChild(table);
       })
-      .catch(err => console.error('Błąd pobierania/parowania CSV:', err));
+      .catch(err => {
+        console.error('Błąd podczas pobierania/parowania CSV:', err);
+        document.getElementById('table-container').innerHTML =
+          '<p>Wystąpił błąd podczas wczytywania danych.</p>';
+      });
   </script>
 </body>
 </html>
