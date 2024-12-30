@@ -16,98 +16,90 @@
       background-color: #f5f5f5;
     }
     input[type="number"] {
-      width: 80px; 
+      width: 80px;
     }
   </style>
-  <!-- Biblioteka SheetJS z CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-  <h1>Modele na sprzedaż</h1>
-  
+  <h1>Modele na sprzedaż (kolumna K = "Tak")</h1>
+
   <div id="table-container"></div>
-  
+
   <script>
-    // Link do XLSX wyeksportowanego z Google Sheets
-    const xlsxUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pub?output=xlsx';
+    // Link do pliku CSV
+    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pub?gid=1713753991&single=true&output=csv';
 
-    // Definicje kolumn (0-based index):
-    // A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7, I=8, J=9, K=10, L=11, M=12, N=13, ...
-    // Ukrywamy: C(2), I(8), J(9), K(10), N(13)
+    // Kolumny, które chcemy ukryć
+    // C(2), I(8), J(9), K(10), N(13)
     const HIDDEN_COLUMNS = [2, 8, 9, 10, 13];
-    // Jeśli w poprzednich przykładach był filtr kolumny K na "Tak",
-    // to tutaj K(10) i tak jest schowana, więc ewentualny filtr musimy najpierw zastosować,
-    // a dopiero potem schować K. (Jeśli jest niepotrzebny, można usunąć).
-    // Dla przykładu zachowuję filtr K=Tak (VALUE_TO_MATCH).
 
-    const COLUMN_K_INDEX = 10;       // K
-    const VALUE_TO_MATCH = 'tak';    // filtr => "Tak"
-    // Kolumna M ma indeks 12 => M=12 (potrzebna do inputa).
+    // Filtr kolumny K (index 10) => "Tak"
+    const COLUMN_K_INDEX = 10;
+    const VALUE_TO_MATCH = 'tak';
+
+    // Kolumna M (index 12) - maksymalna liczba szt. do inputa
     const COLUMN_M_INDEX = 12;
 
-    // Nic powyżej np. kolumny O(14)? 
-    // Jeśli chcesz ograniczyć do N(13) lub M(12), możesz to zmienić.
-    // Skoro N (13) i K(10) ukrywamy, to i tak się nie pokażą. 
-    // Ale w razie czego:
-    const MAX_COLUMN_INDEX = 20;   // Dajmy zapasowo 20, by nic dalszego się nie pokazało
+    // Dla bezpieczeństwa ograniczamy liczbę kolumn, żeby nie wyświetlać dalekich kolumn
+    const MAX_COLUMN_INDEX = 20;
 
-    // Funkcja pomocnicza do sprawdzenia/konwersji wartości w kolumnie M
+    // Pomocnicza funkcja do przerobienia stringa na liczbę (lub 1)
     function parseIntOr(val, defaultVal = 1) {
       const parsed = parseInt(val, 10);
       return isNaN(parsed) ? defaultVal : parsed;
     }
 
-    fetch(xlsxUrl)
-      .then(response => response.arrayBuffer())
-      .then(arrayBuffer => {
-        // Odczyt workbooka z binarnego arrayBuffer
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    fetch(csvUrl)
+      .then(response => response.text())
+      .then(csvData => {
+        // 1) Podział na wiersze
+        //    usuwamy ewentualne puste linie np. .filter(line => line.trim() !== '') w razie potrzeby
+        const rows = csvData.split('\n').map(line => line.trim()).filter(line => line !== '');
         
-        // Pierwszy arkusz w skoroszycie
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        
-        // Konwersja do tablicy tablic (header: 1 => pierwszy wiersz to [nagłówek], a potem [data...])
-        const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        if (data.length === 0) {
-          throw new Error('Arkusz jest pusty lub nie ma danych.');
-        }
-        
-        // Pierwszy wiersz to nagłówki
-        const headers = data[0];
-        // Kolejne wiersze to dane
-        let rows = data.slice(1);
+        // 2) Każdy wiersz dzielimy po przecinku -> tablica kolumn
+        //    Uwaga: proste split(',') może się wyłożyć, jeśli w arkuszu są przecinki w komórkach,
+        //    ale zakładamy, że ich nie ma lub używamy CSV w najprostszym formacie.
+        const data = rows.map(row => row.split(','));
 
-        // (Opcjonalnie) Filtr: kolumna K=10 == "Tak"
-        rows = rows.filter(row => {
-          const valK = (row[COLUMN_K_INDEX] || '').toString().trim().toLowerCase();
-          return valK === VALUE_TO_MATCH;
+        if (data.length < 2) {
+          throw new Error('Brak danych lub za mało wierszy w CSV.');
+        }
+
+        // Pierwszy wiersz => nagłówki
+        const headers = data[0];
+        // Kolejne wiersze => dane
+        let bodyRows = data.slice(1);
+
+        // 3) Filtr: wyświetlamy tylko wiersze, w których kolumna K(10) == "Tak"
+        bodyRows = bodyRows.filter(r => {
+          const val = (r[COLUMN_K_INDEX] || '').toString().trim().toLowerCase();
+          return val === VALUE_TO_MATCH;
         });
 
-        // === Budowa tabeli HTML ===
+        // === BUDUJEMY TABELĘ HTML ===
         const table = document.createElement('table');
-        
+
         // --- THEAD ---
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
 
-        // Dodajemy widoczne (nieukryte) nagłówki z oryginalnych plus 2 nowe kolumny
-        headers.forEach((headerText, index) => {
-          if (index <= MAX_COLUMN_INDEX && !HIDDEN_COLUMNS.includes(index)) {
+        // Dodajemy komórki nagłówkowe (z pominięciem ukrytych kolumn)
+        headers.forEach((headerText, colIndex) => {
+          if (colIndex <= MAX_COLUMN_INDEX && !HIDDEN_COLUMNS.includes(colIndex)) {
             const th = document.createElement('th');
-            th.textContent = headerText || ''; 
+            th.textContent = headerText;
             headerRow.appendChild(th);
           }
         });
 
-        // Dodajemy 2 nowe kolumny do HEADERS:
-        // 1) "Wybierz" (z checkbox)
-        let thSelect = document.createElement('th');
+        // Dodajemy 2 nowe kolumny do nagłówka
+        // 1) Wybierz (checkbox)
+        const thSelect = document.createElement('th');
         thSelect.textContent = 'Wybierz';
         headerRow.appendChild(thSelect);
 
-        // 2) "Ilość" (z input type=number)
-        let thQty = document.createElement('th');
+        // 2) Ilość (input number)
+        const thQty = document.createElement('th');
         thQty.textContent = 'Ilość';
         headerRow.appendChild(thQty);
 
@@ -117,42 +109,38 @@
         // --- TBODY ---
         const tbody = document.createElement('tbody');
 
-        rows.forEach(row => {
+        bodyRows.forEach(row => {
           const tr = document.createElement('tr');
-          
-          // Generujemy komórki z oryginalnych danych
+
+          // Przetwarzamy każdą kolumnę w wierszu
           row.forEach((cellValue, colIndex) => {
             if (colIndex <= MAX_COLUMN_INDEX && !HIDDEN_COLUMNS.includes(colIndex)) {
               const td = document.createElement('td');
-              td.textContent = (cellValue === undefined) ? '' : cellValue;
+              td.textContent = cellValue;
               tr.appendChild(td);
             }
           });
 
-          // 1) Nowa kolumna: checkbox
-          const tdCheckbox = document.createElement('td');
+          // 1) Kolumna z checkboxem
+          const tdCheck = document.createElement('td');
           const checkbox = document.createElement('input');
           checkbox.type = 'checkbox';
-          tdCheckbox.appendChild(checkbox);
-          tr.appendChild(tdCheckbox);
+          tdCheck.appendChild(checkbox);
+          tr.appendChild(tdCheck);
 
-          // 2) Nowa kolumna: <input type="number">
+          // 2) Kolumna z <input type="number">
           const tdNumber = document.createElement('td');
           const inputNum = document.createElement('input');
           inputNum.type = 'number';
           inputNum.min = '1';
 
-          // Odczytujemy wartość z kolumny M (index 12) => to limit górny
-          const mValue = parseIntOr(row[COLUMN_M_INDEX], 1);  
-          // max= mValue - 1
+          // Ustal max = (wartość w kolumnie M) - 1
+          const mValue = parseIntOr(row[COLUMN_M_INDEX], 1);
           if (mValue > 1) {
             inputNum.max = (mValue - 1).toString();
           } else {
-            // jeśli w M jest 1 lub mniej albo brak wartości, 
-            // to max wstawiamy 1 (ew. brak, zależnie od wymagań)
             inputNum.max = '1';
           }
-
           inputNum.value = '1'; // domyślna wartość
 
           tdNumber.appendChild(inputNum);
@@ -163,11 +151,11 @@
 
         table.appendChild(tbody);
 
-        // Wstawiamy gotową tabelę
+        // Wstawiamy gotową tabelę do kontenera
         document.getElementById('table-container').appendChild(table);
       })
-      .catch(error => {
-        console.error('Błąd podczas pobierania / parsowania XLSX:', error);
+      .catch(err => {
+        console.error('Błąd odczytu CSV:', err);
       });
   </script>
 </body>
