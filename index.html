@@ -2,35 +2,53 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
-  <title>CSV z Google Sheets w tabeli</title>
+  <title>Filtr danych z CSV</title>
+  <style>
+    table {
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px 12px;
+    }
+    th {
+      background-color: #f5f5f5;
+    }
+  </style>
 </head>
 <body>
-  <h1>Dane z arkusza Google Sheets</h1>
-  <!-- Kontener, w którym umieścimy wygenerowaną tabelę -->
+  <h1>Dane z arkusza Google Sheets (kolumna K == "Tak")</h1>
   <div id="table-container"></div>
   
   <script>
-    // Link do Twojego CSV (udostępnionego z Google Sheets)
+    // Link do CSV (udostępniony z Google Sheets)
     const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pub?gid=1713753991&single=true&output=csv';
 
     fetch(csvUrl)
-      .then(response => response.text()) // Odbieramy plik jako tekst
+      .then(response => response.text()) // Pobieramy zawartość CSV jako tekst
       .then(data => {
-        // Rozbijamy plik CSV na wiersze
+        // Rozdzielamy tekst na wiersze
         const rows = data.trim().split('\n');
 
-        // Pierwszy wiersz to nagłówki kolumn
+        // Pierwszy wiersz to nagłówki
         const headers = rows[0].split(',');
 
         // Pozostałe wiersze to dane
         const bodyRows = rows.slice(1);
 
-        // Tworzymy tabelę
-        const table = document.createElement('table');
-        table.style.borderCollapse = 'collapse';
-        table.border = "1"; // Prosta ramka wokół tabeli
+        // (1) Filtrujemy wiersze tak, aby zawierały w kolumnie K wartość "Tak"
+        // Kolumna K to indeks 10 (0=A, 1=B, ..., 10=K)
+        const filteredRows = bodyRows.filter(row => {
+          const cols = row.split(',');
+          // Zwracamy true, jeśli w kolumnie K znajduje się "Tak"
+          return cols[10]?.trim() === 'Tak';
+        });
 
-        // Tworzymy thead z nagłówkami
+        // (2) Tworzymy tabelę
+        const table = document.createElement('table');
+
+        // Thead z nagłówkami
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
         headers.forEach(col => {
@@ -41,10 +59,9 @@
         thead.appendChild(headerRow);
         table.appendChild(thead);
 
-        // Tworzymy tbody z zawartością
+        // Tbody z przefiltrowanymi wierszami
         const tbody = document.createElement('tbody');
-        bodyRows.forEach(row => {
-          // Rozbijamy każdy wiersz na kolumny
+        filteredRows.forEach(row => {
           const cols = row.split(',');
           const tr = document.createElement('tr');
           cols.forEach(colData => {
@@ -60,7 +77,7 @@
         document.getElementById('table-container').appendChild(table);
       })
       .catch(error => {
-        console.error('Błąd podczas pobierania CSV:', error);
+        console.error('Błąd podczas pobierania lub parsowania CSV:', error);
       });
   </script>
 </body>
