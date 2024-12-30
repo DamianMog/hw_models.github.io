@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
-  <title>Odczyt z Google Sheets (HTML)</title>
+  <title>Modele na sprzedaż</title>
   <style>
     table {
       border-collapse: collapse;
@@ -18,7 +18,7 @@
   </style>
 </head>
 <body>
-  <h1>Filtr: Tylko wiersze z kolumną K = "Tak"</h1>
+  <h1>Modele na sprzedaż - (kolumna K = "Tak")</h1>
   
   <div id="table-container"></div>
   
@@ -26,9 +26,15 @@
     // Nowy link do pliku jako strona HTML (pubhtml)
     const sheetHtmlUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pubhtml?gid=1713753991&single=true';
 
-    // Kolumna K to indeks 10 (0=A, 1=B, ..., 10=K)
+    // Kolumna K to indeks 10 (A=0, B=1, C=2, ..., K=10)
     const COLUMN_K_INDEX = 10;
-    const VALUE_TO_MATCH = 'tak'; // użyjemy toLowerCase() dla pewności
+    // Szukamy dokładnie "Tak" (niezależnie od wielkości liter)
+    const VALUE_TO_MATCH = 'tak';
+
+    // Kolumny, które chcemy ukryć (lub nie wyświetlać w ogóle)
+    const HIDDEN_COLUMNS = [2, 8, 9]; // C, I, J
+    // Nie wyświetlamy nic powyżej kolumny o indeksie 13 (N)
+    const MAX_COLUMN_INDEX = 13;
 
     fetch(sheetHtmlUrl)
       .then(response => response.text())
@@ -38,24 +44,20 @@
         const doc = parser.parseFromString(htmlString, 'text/html');
 
         // (2) Wyszukujemy oryginalną tabelę w dokumencie
-        // Zwykle Google publikuje arkusz w postaci <table> z thead/tbody
         const originalTable = doc.querySelector('table');
         if (!originalTable) {
           throw new Error('Nie znaleziono tabeli w pobranym dokumencie.');
         }
 
-        // (3) Wyciągamy nagłówek tabeli (<thead>)
+        // (3) Wyciągamy thead (nagłówki)
         const thead = originalTable.querySelector('thead');
-        
-        // Wyciągamy wiersze (<tr>) z ciała tabeli (<tbody>)
+        // Wyciągamy wiersze z body
         const rows = originalTable.querySelectorAll('tbody tr');
 
-        // (4) Filtrowanie wierszy
-        // Tylko te, w których kolumna K (indeks 10) == "Tak" (nieważne czy wielkie/małe litery)
+        // (4) Przefiltrowanie wierszy pod kątem kolumny K == "Tak"
         const filteredRows = [];
         rows.forEach(tr => {
           const cells = tr.querySelectorAll('td');
-          // Upewniamy się, że wiersz ma wystarczającą liczbę kolumn
           if (cells.length > COLUMN_K_INDEX) {
             const cellValue = cells[COLUMN_K_INDEX].innerText.trim().toLowerCase();
             if (cellValue === VALUE_TO_MATCH) {
@@ -64,25 +66,49 @@
           }
         });
 
-        // (5) Budujemy nową tabelę w dokumencie
+        // (5) Budujemy nową tabelę
         const newTable = document.createElement('table');
 
-        // Klonujemy thead z oryginalnej tabeli (jeśli istnieje)
+        // ===== Obsługa thead (nagłówki) =====
         if (thead) {
+          // Sklonuj oryginalny thead
           const clonedThead = thead.cloneNode(true);
+          // Ukryj niechciane kolumny w thead
+          const headerRow = clonedThead.querySelector('tr');
+          if (headerRow) {
+            const headerCells = headerRow.querySelectorAll('th');
+            // Idziemy od końca, by usuwać poprawnie (lub ukrywać)
+            for (let i = headerCells.length - 1; i >= 0; i--) {
+              if (i > MAX_COLUMN_INDEX || HIDDEN_COLUMNS.includes(i)) {
+                headerRow.removeChild(headerCells[i]);
+              }
+            }
+          }
           newTable.appendChild(clonedThead);
         }
 
-        // Tworzymy <tbody> i dodajemy przefiltrowane wiersze
+        // ===== Obsługa tbody (filtr + ukrywanie kolumn) =====
         const newTbody = document.createElement('tbody');
-        filteredRows.forEach(tr => {
-          // klonujemy gotowy wiersz (zawierający <td>)
-          newTbody.appendChild(tr.cloneNode(true));
+
+        filteredRows.forEach(oldRow => {
+          // Klonujemy wiersz
+          const newRow = oldRow.cloneNode(true);
+          const newCells = newRow.querySelectorAll('td');
+          
+          // Ukrywamy/ usuwamy niechciane kolumny
+          for (let i = newCells.length - 1; i >= 0; i--) {
+            if (i > MAX_COLUMN_INDEX || HIDDEN_COLUMNS.includes(i)) {
+              newRow.removeChild(newCells[i]);
+            }
+          }
+
+          // Dodajemy przefiltrowany i przycięty wiersz do newTbody
+          newTbody.appendChild(newRow);
         });
-
+        
         newTable.appendChild(newTbody);
-
-        // (6) Dodajemy nową tabelę do strony
+        
+        // (6) Dodajemy gotową tabelę do strony
         document.getElementById('table-container').appendChild(newTable);
       })
       .catch(err => {
