@@ -48,6 +48,7 @@
       transform: scale(1.3);
       cursor: pointer;
     }
+
     /* Styl inputa liczbowego (Ilość) */
     input[type="number"] {
       width: 60px;
@@ -64,10 +65,12 @@
       align-items: center;
       gap: 15px;
     }
+
     #summary {
       font-size: 1em;
       max-width: 700px;
     }
+
     /* Przycisk "Kopiuj" */
     #copyBtn {
       display: none;  /* Pokażemy go dopiero, gdy cokolwiek zostanie zaznaczone */
@@ -259,48 +262,47 @@
       let totalCost = 0;
       let selectedCount = 0;
 
-      // Będziemy też zbierać krótką listę modeli (np. Series + Year), 
-      // aby wyświetlić w podsumowaniu, 
-      // ale możesz dopasować do własnych potrzeb.
+      // Tablica na szczegóły wybranych modeli
       const selectedModels = [];
 
       rows.forEach(row => {
-        // Indeks kolumn:
-        //  0 -> Series
-        //  1 -> Year
-        //  2 -> Toy #
-        //  3 -> Col. #
-        //  4 -> Casting
-        //  5 -> Set #
-        //  6 -> Price
-        //  7 -> szt
-        //  8 -> Wybierz (checkbox)
-        //  9 -> Ilość (input)
+        // Finalna tabela (po kolumnach COLUMNS_TO_SHOW) ma:
+        //   0: Series
+        //   1: Year
+        //   2: Toy #
+        //   3: Col. #
+        //   4: Casting
+        //   5: Set #
+        //   6: Price
+        //   7: szt
+        //   8: Wybierz (checkbox)
+        //   9: Ilość (input)
         const checkboxCell = row.cells[8];
         const checkbox = checkboxCell.querySelector('input[type="checkbox"]');
-        if (!checkbox) return;
+        if (!checkbox) return; // Bez checkboxa omijamy
 
         if (checkbox.checked) {
           selectedCount++;
-          // Podświetlenie wiersza
-          row.classList.add('selected');
-          // Odczyt ceny
+          row.classList.add('selected'); // Podświetlenie wiersza
+
+          // Odczyt Toy #
+          const toyText = row.cells[2].textContent; 
+
+          // Odczyt ceny (Price) → komórka 6
           const priceCell = row.cells[6];
           const priceValue = parseFloat(priceCell.textContent) || 0;
 
-          // Odczyt ilości
+          // Ilość → komórka 9
           const qtyCell = row.cells[9];
           const qtyInput = qtyCell.querySelector('input[type="number"]');
           const qty = parseInt(qtyInput.value, 10) || 1;
 
-          // Koszt danego wiersza
+          // Koszt = cena * ilość
           const cost = priceValue * qty;
           totalCost += cost;
 
-          // Dla krótkiego opisu: np. "Series(0) - Year(1), x qty, = cost"
-          const seriesText = row.cells[0].textContent;
-          const yearText = row.cells[1].textContent;
-          selectedModels.push(`${seriesText} ${yearText} (x${qty}, ${cost}zł)`);
+          // Dodajemy do listy wybranych modeli: np. "Batmobile (x5, 50zł)"
+          selectedModels.push(`${toyText} (x${qty}, ${cost}zł)`);
         } else {
           row.classList.remove('selected');
         }
@@ -310,17 +312,17 @@
       const copyBtn = document.getElementById('copyBtn');
 
       if (selectedCount === 0) {
-        summaryEl.textContent = 
+        summaryEl.textContent =
           'Zaznacz wiersze z modelami, wybierz ilość i prześlij wiadomość do sprzedawcy.';
         copyBtn.style.display = 'none';
         return;
       }
 
-      // Jeśli jest coś zaznaczone
+      // Jeśli zaznaczono cokolwiek → pokazujemy przycisk kopiowania
       copyBtn.style.display = 'inline-block';
 
-      // Zbudujmy treść podsumowania
-      // np. "Wybrałeś 2 modele (Series1 2022, Series2 2023), łączna kwota 80zł"
+      // Budowa treści podsumowania:
+      // "Wybrano 2 modele. Szczegóły: Batmobile (x5, 50zł), Tumbler (x2, 40zł). Razem do zapłaty: 90.00 zł."
       const joinedModels = selectedModels.join(', ');
       summaryEl.textContent =
         `Wybrano ${selectedCount} model(i).\n` +
