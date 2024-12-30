@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Modele na sprzedaż</title>
   <style>
-    /* Cała strona wyśrodkowana */
+    /* Wycentrowanie strony i tła */
     html, body {
       margin: 0; 
       padding: 0;
@@ -12,12 +12,12 @@
       font-family: sans-serif;
       display: flex;
       justify-content: center;
-      align-items: flex-start; /* by strona zaczynała się u góry */
+      align-items: flex-start; 
       background-color: #f0f0f0;
     }
 
     #table-container {
-      width: 95%; /* tabela zajmie ~95% szerokości ekranu */
+      width: 95%;
       margin-top: 20px;
     }
 
@@ -42,7 +42,7 @@
       font-weight: 600;
     }
 
-    /* Stylowanie checkboxa - większy rozmiar i wycentrowanie */
+    /* Stylowanie checkboxa: większy rozmiar, wycentrowanie */
     .checkbox-cell {
       display: flex; 
       justify-content: center; 
@@ -66,17 +66,17 @@
   <div id="table-container"></div>
 
   <script>
-    // URL do CSV
+    // URL do CSV (z parametrem output=csv)
     const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pub?gid=1713753991&single=true&output=csv';
 
-    // Indeksy kolumn, które chcemy zachować (Series, Year, Toy #, Col. #, Casting, Notes, Set #, Price, szt).
-    // Wg wcześniejszych ustaleń: 
-    //   0=Series, 1=Year, 3=Toy#, 4=Col.#, 5=Casting, 6=Notes, 7=Set#, 11=Price, 12=szt
-    // Następnie dodamy kolumny: Wybierz, Ilość (dynamicznie)
+    // Kolumna Sell (index 10) musi mieć wartość "Tak"
+    const COLUMN_SELL_INDEX = 10;
+
+    // Indeksy kolumn do wyświetlenia:
+    // 0=Series, 1=Year, 3=Toy#, 4=Col.#, 5=Casting, 6=Notes, 7=Set#, 11=Price, 12=szt
     const COLUMNS_TO_SHOW = [0, 1, 3, 4, 5, 6, 7, 11, 12];
 
-    // Nazwy nagłówków (opcjonalnie możemy użyć oryginalnych z CSV, ale tutaj chcemy je
-    // mieć w konkretnej kolejności i ewentualnie zmienione nazwy).
+    // Etykiety nagłówków (w kolejności COLUMNS_TO_SHOW)
     const HEADERS_NAMES = [
       'Series',
       'Year',
@@ -89,7 +89,7 @@
       'szt'
     ];
 
-    // Pomocnicza funkcja do parsowania integera
+    // Funkcja pomocnicza do parsowania integera
     function parseIntOr(val, defaultVal = 1) {
       const parsed = parseInt(val, 10);
       return isNaN(parsed) ? defaultVal : parsed;
@@ -98,37 +98,44 @@
     fetch(csvUrl)
       .then(response => response.text())
       .then(csvData => {
-        // Rozbijamy na wiersze
-        const lines = csvData.split('\n').map(l => l.trim()).filter(l => l !== '');
-        // Każdy wiersz -> tablica kolumn
-        // Uwaga: proste split(',') może być problematyczne przy przecinkach w danych.
-        // Jeśli dane są proste, to wystarczy. W innym wypadku => PapaParse / inna biblioteka.
-        const data = lines.map(line => line.split(','));
+        // Rozbijamy na wiersze i usuwamy ewentualne puste
+        const lines = csvData.split('\n')
+          .map(line => line.trim())
+          .filter(line => line !== '');
 
-        if (data.length < 2) {
-          throw new Error('Za mało wierszy w CSV');
+        // Dzielimy każdą linię po przecinku (proste założenie CSV bez przecinków w wartościach)
+        const allRows = lines.map(line => line.split(','));
+
+        if (allRows.length < 2) {
+          throw new Error('Zbyt mało wierszy w CSV.');
         }
 
-        // Pierwszy wiersz to nagłówki (ale i tak je nadpiszemy HEADERS_NAMES, jeśli chcemy).
-        // W razie czego oryginalne: const originalHeaders = data[0];
-        let bodyRows = data.slice(1); // reszta to wiersze z danymi
+        // Pierwszy wiersz to nagłówki (których i tak zaraz nie użyjemy), 
+        // a bodyRows to reszta wierszy
+        const bodyRows = allRows.slice(1);
 
-        // Budujemy tabelę
+        // --- FILTR: wyświetlamy tylko wiersze, gdzie Sell == "Tak" ---
+        const filteredRows = bodyRows.filter(row => {
+          // row[10] => kolumna Sell
+          const sellValue = (row[COLUMN_SELL_INDEX] || '').toLowerCase().trim();
+          return (sellValue === 'tak');
+        });
+
+        // Budowa tabeli HTML
         const table = document.createElement('table');
 
         // === THEAD ===
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
 
-        // Dodajemy nagłówki z HEADERS_NAMES w kolejności COLUMNS_TO_SHOW
-        COLUMNS_TO_SHOW.forEach((colIndex, i) => {
+        // Tworzymy nagłówki wg HEADERS_NAMES
+        HEADERS_NAMES.forEach(name => {
           const th = document.createElement('th');
-          // Wstawiamy nazwę z HEADERS_NAMES (lub oryginalną z CSV, jeśli wolisz)
-          th.textContent = HEADERS_NAMES[i] || '';
+          th.textContent = name;
           headerRow.appendChild(th);
         });
 
-        // Dodatkowe 2 kolumny (Wybierz, Ilość)
+        // Dodajemy 2 nowe kolumny (Wybierz, Ilość)
         const thWybierz = document.createElement('th');
         thWybierz.textContent = 'Wybierz';
         headerRow.appendChild(thWybierz);
@@ -143,44 +150,39 @@
         // === TBODY ===
         const tbody = document.createElement('tbody');
 
-        // Generujemy wiersze danych
-        bodyRows.forEach(row => {
+        // Generujemy wiersze
+        filteredRows.forEach(row => {
           const tr = document.createElement('tr');
 
-          // Dla każdej kolumny z COLUMNS_TO_SHOW
+          // Dla każdej z kolumn w COLUMNS_TO_SHOW
           COLUMNS_TO_SHOW.forEach(colIndex => {
             const td = document.createElement('td');
-            // Jeśli w CSV brakuje kolumny (row[colIndex] = undefined), wstaw pusty
             td.textContent = row[colIndex] || '';
             tr.appendChild(td);
           });
 
-          // 1) Kolumna "Wybierz" (checkbox) wycentrowany
+          // 1) Kolumna "Wybierz" (checkbox)
           const tdCheck = document.createElement('td');
-          tdCheck.classList.add('checkbox-cell'); // klasa do wycentrowania
-
+          tdCheck.classList.add('checkbox-cell'); 
           const checkbox = document.createElement('input');
           checkbox.type = 'checkbox';
-          // Powiększony został w CSS .checkbox-cell input[type="checkbox"] { width:20px; height:20px; }
           tdCheck.appendChild(checkbox);
           tr.appendChild(tdCheck);
 
-          // 2) Kolumna "Ilość" (input type=number)
+          // 2) Kolumna "Ilość" (input number)
           const tdNumber = document.createElement('td');
           const inputNumber = document.createElement('input');
           inputNumber.type = 'number';
           inputNumber.min = '1';
-          // Maks = wartość z kolumny "szt" (index 12) lub 1
+
+          // Ustalamy max na wartość z kolumny 'szt' (index 12)
           const sztValue = parseIntOr(row[12], 1);
-          // Ustalamy max na sztValue (lub ewentualnie to samo - nic nie odejmujemy)
-          // bo: "Input w kolumnie ILOŚĆ ustaw wartość MAX na taką samą lub mniejszą jak wartość w kolumnie 'szt'."
-          // => max = sztValue
           if (sztValue >= 1) {
             inputNumber.max = sztValue.toString();
           } else {
             inputNumber.max = '1';
           }
-          // Domyślna wartość = 1
+          // Domyślna wartość
           inputNumber.value = '1';
 
           tdNumber.appendChild(inputNumber);
@@ -193,12 +195,10 @@
 
         // Wstawiamy tabelę do kontenera
         const container = document.getElementById('table-container');
-        container.innerHTML = ''; // czyścimy na wszelki wypadek
+        container.innerHTML = ''; // wyczyszczenie
         container.appendChild(table);
       })
-      .catch(err => {
-        console.error('Błąd odczytu/parowania CSV:', err);
-      });
+      .catch(err => console.error('Błąd pobierania/parowania CSV:', err));
   </script>
 </body>
 </html>
