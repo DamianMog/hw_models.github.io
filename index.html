@@ -86,6 +86,35 @@
     #copyBtn:hover {
       background-color: #0056b3;
     }
+
+    /* Maksymalna szerokość miniaturki */
+    img.photo-thumb {
+      max-width: 100px;
+      cursor: pointer;
+    }
+
+    /* Popup do powiększenia zdjęć (opcjonalnie, jeśli chcesz) */
+    #photo-popup {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    #photo-popup img {
+      max-width: 90%;
+      max-height: 90%;
+    }
+    #photo-popup .close-btn {
+      position: absolute;
+      top: 20px; right: 20px;
+      font-size: 30px;
+      color: white;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -105,20 +134,32 @@
     </div>
   </div>
 
+  <!-- Opcjonalny popup do powiększania zdjęcia -->
+  <div id="photo-popup">
+    <span class="close-btn" onclick="hidePopup()">&times;</span>
+    <img src="" alt="Popup Image" />
+  </div>
+
   <script>
     /************************************************************
-     * KONFIGURACJA KOLUMN
+     * KONFIGURACJA
      ************************************************************/
     const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pub?gid=1713753991&single=true&output=csv';
+    const repoOwner = "DamianMog";         
+    const repoName = "missing-cars.github.io"; 
+    const folderPath = "images";  
+    const gitHubApiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${folderPath}`;
 
     // Kolumna Sell (index 10) musi być "Tak"
     const COLUMN_SELL = 10;
 
     // Kolumny do wyświetlenia (bez NOTES (6)):
     // [Series (0), Year (1), Toy# (3), Col.# (4), Casting (5), Set# (7), Price (11), szt (12)]
-    const COLUMNS_TO_SHOW = [0, 1, 3, 4, 5, 7, 11, 12];
-
-    // Odpowiednie nazwy w thead
+    // Teraz dodamy 2 nowe kolumny Photo 1 i Photo 2:
+    // Finalnie: 0=Series, 1=Year, 2=Toy#, 3=Col.#, 4=Casting, 5=Set#, 6=Price, 7=szt, 8=Photo1, 9=Photo2, 10=Wybierz, 11=Ilość
+    // ale do HEADERS i do TABELI wstawimy Photo1, Photo2 we właściwym miejscu.
+    const COLUMNS_TO_SHOW = [0, 1, 3, 4, 5, 7, 11, 12]; // oryginalne CSV kolumny
+    // HEADERS do tych kolumn:
     const HEADERS = [
       'Series',
       'Year',
@@ -130,129 +171,234 @@
       'szt'
     ];
 
-    // Funkcja do parsowania integera z fallbackiem
-    function parseIntOr(val, def = 1) {
-      const num = parseInt(val, 10);
-      return isNaN(num) ? def : num;
+    // W tym obiekcie zapiszemy info o zdjęciach: photosMap[ToyID] = {1: urlPhoto1, 2: urlPhoto2}
+    let photosMap = {};
+
+    // Zmienna globalna na przefiltrowane wiersze z CSV
+    let filteredRows = [];
+
+
+    /************************************************************
+     * GŁÓWNA FUNKCJA STARTOWA
+     * 1) Pobieramy CSV i filtrujemy
+     * 2) Pobieramy listę plików z GitHuba
+     * 3) Budujemy tabelę
+     ************************************************************/
+    Promise.all([
+      fetchCsvData(),        // pobiera i filtruje CSV
+      fetchGitHubImages()    // pobiera listę zdjęć i zapisuje w photosMap
+    ])
+    .then(() => {
+      buildTable();
+    })
+    .catch(err => {
+      console.error('Błąd w trakcie pobierania danych:', err);
+      document.getElementById('table-container').innerHTML =
+        '<p>Wystąpił błąd podczas wczytywania danych.</p>';
+    });
+
+
+    /************************************************************
+     * 1) POBRANIE I FILTRACJA CSV
+     ************************************************************/
+    function fetchCsvData() {
+      return fetch(csvUrl)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Błąd sieci: ${response.status}`);
+          }
+          return response.text();
+        })
+        .then(csvData => {
+          const lines = csvData
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line !== '');
+          const allRows = lines.map(line => line.split(','));
+          if (allRows.length < 2) {
+            throw new Error('CSV: brak danych lub za mało wierszy.');
+          }
+
+          // Pierwszy wiersz - oryginalne headery (pomijamy)
+          const bodyRows = allRows.slice(1);
+
+          // Filtr: Sell(10) == "tak"
+          filteredRows = bodyRows.filter(row => {
+            const sellVal = (row[COLUMN_SELL] || '').trim().toLowerCase();
+            return sellVal === 'tak';
+          });
+        });
     }
 
     /************************************************************
-     * TWORZENIE TABELI + POBIERANIE DANYCH
+     * 2) POBRANIE LISTY ZDJĘĆ Z GITHUBA
+     *    Zapiszemy w photosMap[toyId][1 lub 2] = url
      ************************************************************/
-    fetch(csvUrl)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`Błąd sieci: ${response.status}`);
-        }
-        return response.text();
-      })
-      .then(csvData => {
-        // 1) Dzielenie na linie, usunięcie pustych
-        const lines = csvData
-          .split('\n')
-          .map(line => line.trim())
-          .filter(line => line !== '');
+    function fetchGitHubImages() {
+      return fetch(gitHubApiUrl)
+        .then(resp => {
+          if (!resp.ok) {
+            throw new Error(`Błąd pobierania plików z GitHuba: ${resp.status}`);
+          }
+          return resp.json();
+        })
+        .then(files => {
+          photosMap = {}; // wyzeruj na wszelki wypadek
 
-        // 2) Każda linia -> tablica kolumn
-        const allRows = lines.map(line => line.split(','));
-        if (allRows.length < 2) {
-          throw new Error('CSV: brak danych lub za mało wierszy.');
-        }
+          files.forEach(file => {
+            // Sprawdzamy, czy to plik z rozszerzeniem .jpg/.jpeg/.png/.gif
+            if (file.type === "file" && file.name.match(/\.(jpg|jpeg|png|gif)$/i)) {
+              // Oczekujemy formatu: <ToyID>_<1lub2>.<ext>
+              // np. HTC83_1.png
+              const match = file.name.match(/^(.+)_(1|2)\.(jpg|jpeg|png|gif)$/i);
+              if (!match) {
+                // nie pasuje do wzorca
+                return;
+              }
+              const toyId = match[1];   // np. "HTC83"
+              const photoNum = match[2]; // "1" lub "2"
 
-        // Pierwszy wiersz (allRows[0]) to oryginalne headery — pomijamy
-        // Reszta to dane
-        const bodyRows = allRows.slice(1);
-
-        // 3) FILTR: Tylko wiersze, gdzie Sell (index 10) == "Tak"
-        const filteredRows = bodyRows.filter(row => {
-          const sellVal = (row[COLUMN_SELL] || '').trim().toLowerCase();
-          return sellVal === 'tak';
-        });
-
-        // 4) Budowa tabeli
-        const table = document.createElement('table');
-
-        // THEAD
-        const thead = document.createElement('thead');
-        const headerRow = document.createElement('tr');
-
-        // Dodajemy kolumny wg HEADERS
-        HEADERS.forEach(h => {
-          const th = document.createElement('th');
-          th.textContent = h;
-          headerRow.appendChild(th);
-        });
-
-        // Dodatkowe 2 kolumny: Wybierz, Ilość
-        const thSelect = document.createElement('th');
-        thSelect.textContent = 'Wybierz';
-        headerRow.appendChild(thSelect);
-
-        const thQty = document.createElement('th');
-        thQty.textContent = 'Ilość';
-        headerRow.appendChild(thQty);
-
-        thead.appendChild(headerRow);
-        table.appendChild(thead);
-
-        // TBODY
-        const tbody = document.createElement('tbody');
-
-        filteredRows.forEach(row => {
-          const tr = document.createElement('tr');
-
-          // Wypełniamy kolumny z COLUMNS_TO_SHOW
-          COLUMNS_TO_SHOW.forEach(index => {
-            const td = document.createElement('td');
-            td.textContent = row[index] || '';
-            tr.appendChild(td);
+              // Zapisz w obiekcie
+              if (!photosMap[toyId]) {
+                photosMap[toyId] = {};
+              }
+              photosMap[toyId][photoNum] = file.download_url;
+            }
           });
-
-          // Kolumna "Wybierz" (checkbox)
-          const tdSelect = document.createElement('td');
-          const checkbox = document.createElement('input');
-          checkbox.type = 'checkbox';
-          // Po kliknięciu => aktualizujemy podsumowanie
-          checkbox.addEventListener('change', updateSummary);
-          tdSelect.appendChild(checkbox);
-          tr.appendChild(tdSelect);
-
-          // Kolumna "Ilość" (input number)
-          const tdQty = document.createElement('td');
-          const inputNumber = document.createElement('input');
-          inputNumber.type = 'number';
-          inputNumber.min = '1';
-          // max = wartość w kolumnie 'szt' (index = 12) lub 1
-          const sztValue = parseIntOr(row[12], 1);
-          inputNumber.max = sztValue.toString();
-          inputNumber.value = '1';
-          // Po zmianie ilości => aktualizujemy podsumowanie
-          inputNumber.addEventListener('change', updateSummary);
-
-          tdQty.appendChild(inputNumber);
-          tr.appendChild(tdQty);
-
-          tbody.appendChild(tr);
         });
+    }
 
-        table.appendChild(tbody);
-
-        // 5) Wstawienie tabeli do strony
-        const container = document.getElementById('table-container');
-        container.innerHTML = '';  // czyścimy stary tekst
-        container.appendChild(table);
-
-        // Początkowe wyświetlenie (jeśli nic nie zaznaczone)
-        updateSummary();
-      })
-      .catch(err => {
-        console.error('Błąd podczas wczytywania CSV:', err);
-        document.getElementById('table-container').innerHTML =
-          '<p>Wystąpił błąd podczas wczytywania danych.</p>';
-      });
 
     /************************************************************
-     * OBSŁUGA PODSUMOWANIA I KOPIOWANIA
+     * 3) BUDOWA TABELI
+     ************************************************************/
+    function buildTable() {
+      // Budujemy strukturę table → thead → tbody
+      const table = document.createElement('table');
+
+      // THEAD (dodajemy HEADERS + 2 kolumny Photo1, Photo2 + Wybierz, Ilość)
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+
+      HEADERS.forEach(h => {
+        const th = document.createElement('th');
+        th.textContent = h;
+        headerRow.appendChild(th);
+      });
+
+      // Dodatkowe kolumny: Photo 1, Photo 2
+      let thPhoto1 = document.createElement('th');
+      thPhoto1.textContent = 'Photo 1';
+      headerRow.appendChild(thPhoto1);
+
+      let thPhoto2 = document.createElement('th');
+      thPhoto2.textContent = 'Photo 2';
+      headerRow.appendChild(thPhoto2);
+
+      // Kolumna "Wybierz"
+      const thSelect = document.createElement('th');
+      thSelect.textContent = 'Wybierz';
+      headerRow.appendChild(thSelect);
+
+      // Kolumna "Ilość"
+      const thQty = document.createElement('th');
+      thQty.textContent = 'Ilość';
+      headerRow.appendChild(thQty);
+
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      // TBODY
+      const tbody = document.createElement('tbody');
+
+      filteredRows.forEach(row => {
+        const tr = document.createElement('tr');
+
+        // Wypełniamy kolumny z COLUMNS_TO_SHOW
+        COLUMNS_TO_SHOW.forEach(index => {
+          const td = document.createElement('td');
+          td.textContent = row[index] || '';
+          tr.appendChild(td);
+        });
+
+        // ---- Photo 1, Photo 2 ----
+        const toyID = row[3]; // bo w COLUMNS_TO_SHOW = [0,1,3,4,5,7,11,12], index 3=Toy#
+        // UWAGA: sprawdź, czy na pewno "Toy #" jest w kolumnie 3 w finalnej tabeli
+        // (jeśli Tabela: 0=Series,1=Year,2=Toy#,3=Col.#, to może trzeba dopasować).
+        // Według HEADERS: Series(0), Year(1), Toy#(2?), ... 
+        // W razie czego zrób console.log(...), by sprawdzić.
+
+        const tdPhoto1 = document.createElement('td');
+        const tdPhoto2 = document.createElement('td');
+
+        // Spr. czy mamy w photosMap toyID i photo1
+        if (photosMap[toyID] && photosMap[toyID]['1']) {
+          const img1 = document.createElement('img');
+          img1.src = photosMap[toyID]['1'];
+          img1.alt = "Photo 1";
+          img1.classList.add('photo-thumb');
+          // Dodaj event do powiększania
+          img1.addEventListener('click', () => showPopup(img1.src));
+          tdPhoto1.appendChild(img1);
+        } else {
+          tdPhoto1.textContent = '-'; // brak fotki
+        }
+
+        if (photosMap[toyID] && photosMap[toyID]['2']) {
+          const img2 = document.createElement('img');
+          img2.src = photosMap[toyID]['2'];
+          img2.alt = "Photo 2";
+          img2.classList.add('photo-thumb');
+          img2.addEventListener('click', () => showPopup(img2.src));
+          tdPhoto2.appendChild(img2);
+        } else {
+          tdPhoto2.textContent = '-';
+        }
+
+        tr.appendChild(tdPhoto1);
+        tr.appendChild(tdPhoto2);
+
+        // Kolumna "Wybierz" (checkbox)
+        const tdSelect = document.createElement('td');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.addEventListener('change', updateSummary);
+        tdSelect.appendChild(checkbox);
+        tr.appendChild(tdSelect);
+
+        // Kolumna "Ilość" (input number)
+        const tdQty = document.createElement('td');
+        const inputNumber = document.createElement('input');
+        inputNumber.type = 'number';
+        inputNumber.min = '1';
+        // max = kolumna 'szt' (w row[12]) bo w oryginalnym CSV to index 12
+        // (ale w TABELI jest to index 7 w COLUMNS_TO_SHOW).
+        // Lepiej weźmy raw z row[12].
+        const sztValue = parseIntOr(row[12], 1);
+        inputNumber.max = sztValue.toString();
+        inputNumber.value = '1';
+        inputNumber.addEventListener('change', updateSummary);
+
+        tdQty.appendChild(inputNumber);
+        tr.appendChild(tdQty);
+
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+
+      // Wstawiamy do container
+      const container = document.getElementById('table-container');
+      container.innerHTML = '';  // czyścimy stare
+      container.appendChild(table);
+
+      // Uruchamiamy podsumowanie
+      updateSummary();
+    }
+
+
+    /************************************************************
+     * OBSŁUGA PODSUMOWANIA
      ************************************************************/
     function updateSummary() {
       const table = document.querySelector('#table-container table');
@@ -265,35 +411,36 @@
       // Tablica na szczegóły wybranych modeli
       const selectedModels = [];
 
-      rows.forEach(row => {
-        // Finalna tabela (po kolumnach COLUMNS_TO_SHOW) ma:
-        //   0: Series
-        //   1: Year
-        //   2: Toy #
-        //   3: Col. #
-        //   4: Casting
-        //   5: Set #
-        //   6: Price
-        //   7: szt
-        //   8: Wybierz (checkbox)
-        //   9: Ilość (input)
-        const checkboxCell = row.cells[8];
+      rows.forEach(tr => {
+        // Indeksy w finalnej tabeli:
+        //  0: Series
+        //  1: Year
+        //  2: Toy #
+        //  3: Col. #
+        //  4: Casting
+        //  5: Set #
+        //  6: Price
+        //  7: szt
+        //  8: Photo1
+        //  9: Photo2
+        // 10: Wybierz (checkbox)
+        // 11: Ilość (input)
+        const checkboxCell = tr.cells[10];
         const checkbox = checkboxCell.querySelector('input[type="checkbox"]');
-        if (!checkbox) return; // Bez checkboxa omijamy
+        if (!checkbox) return;
 
         if (checkbox.checked) {
           selectedCount++;
-          row.classList.add('selected'); // Podświetlenie wiersza
+          tr.classList.add('selected');
 
-          // Odczyt Toy #
-          const toyText = row.cells[2].textContent; 
+          // Odczyt "Toy #" – kolumna 2
+          const toyText = tr.cells[2].textContent; 
+          
+          // Cena (Price) – kolumna 6
+          const priceValue = parseFloat(tr.cells[6].textContent) || 0;
 
-          // Odczyt ceny (Price) → komórka 6
-          const priceCell = row.cells[6];
-          const priceValue = parseFloat(priceCell.textContent) || 0;
-
-          // Ilość → komórka 9
-          const qtyCell = row.cells[9];
+          // Ilość (kolumna 11)
+          const qtyCell = tr.cells[11];
           const qtyInput = qtyCell.querySelector('input[type="number"]');
           const qty = parseInt(qtyInput.value, 10) || 1;
 
@@ -301,10 +448,10 @@
           const cost = priceValue * qty;
           totalCost += cost;
 
-          // Dodajemy do listy wybranych modeli: np. "Batmobile (x5, 50zł)"
+          // Dodajemy do listy wybranych modeli
           selectedModels.push(`${toyText} (x${qty}, ${cost}zł)`);
         } else {
-          row.classList.remove('selected');
+          tr.classList.remove('selected');
         }
       });
 
@@ -318,11 +465,8 @@
         return;
       }
 
-      // Jeśli zaznaczono cokolwiek → pokazujemy przycisk kopiowania
       copyBtn.style.display = 'inline-block';
 
-      // Budowa treści podsumowania:
-      // "Wybrano 2 modele. Szczegóły: Batmobile (x5, 50zł), Tumbler (x2, 40zł). Razem do zapłaty: 90.00 zł."
       const joinedModels = selectedModels.join(', ');
       summaryEl.textContent =
         `Wybrano ${selectedCount} model(i).\n` +
@@ -330,11 +474,30 @@
         `Razem do zapłaty: ${totalCost.toFixed(2)} zł.`;
     }
 
+    /************************************************************
+     * KOPIOWANIE PODSUMOWANIA
+     ************************************************************/
     function copySummary() {
       const summaryText = document.getElementById('summary').textContent;
       navigator.clipboard.writeText(summaryText).then(() => {
         alert('Skopiowano treść podsumowania!');
       });
+    }
+
+    /************************************************************
+     * POPUP ZE ZDJĘCIEM
+     ************************************************************/
+    function showPopup(src) {
+      const popup = document.getElementById('photo-popup');
+      const imgPopup = popup.querySelector('img');
+      imgPopup.src = src;
+      popup.style.display = 'flex';
+    }
+
+    function hidePopup() {
+      const popup = document.getElementById('photo-popup');
+      popup.style.display = 'none';
+      popup.querySelector('img').src = '';
     }
   </script>
 </body>
