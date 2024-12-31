@@ -277,21 +277,22 @@
           const totalRows = bodyRows.length;
           console.log("Łączna liczba wierszy w CSV:", totalRows);
 
-          const rowsWithYear2024 = bodyRows.filter(row => row[1].trim() === '2024').length;
+          const rowsWithYear2024 = bodyRows.filter(row => row[1] && row[1].trim() === '2024').length;
           console.log("Liczba wierszy gdzie Year == 2024:", rowsWithYear2024);
 
           const rowsWithInNie = bodyRows.filter(row => row[8] && row[8].trim().toLowerCase() === 'nie').length;
-          console.log("Liczba wierszy gdzie In == Nie:", rowsWithInNie);
+          console.log("Liczba wierszy gdzie In Collection == Nie:", rowsWithInNie);
 
-          // Filtrowanie danych: Year == 2024 i In == Nie
+          // Filtrowanie danych: Year == 2024, In Collection == Nie, Series != "Red Series"
           const filteredRows = bodyRows.filter(row => {
             const yearVal = (row[1] || '').trim(); // Year
-            const inVal = (row[8] || '').trim().toLowerCase(); // Zakładam, że 'In' jest kolumną 8
+            const inVal = (row[9] || '').trim().toLowerCase(); // Zakładam, że 'In Collection' jest kolumną 9
+            const seriesVal = (row[0] || '').trim();
 
-            return yearVal === '2024' && inVal === 'nie';
+            return yearVal === '2024' && inVal === 'nie' && seriesVal.toLowerCase() !== 'red series';
           });
 
-          console.log("Ilość wierszy po filtrze Year=2024 i In=Nie:", filteredRows.length);
+          console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie i Series!=Red Series:", filteredRows.length);
           buildTable(filteredRows);
         })
         .catch(err => {
