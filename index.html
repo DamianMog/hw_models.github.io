@@ -3,11 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <title>Lista modeli - główna</title>
+  <!-- Dodanie tagu viewport dla responsywności -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 0;
       padding: 0;
+      background-color: #f9f9f9;
     }
     header {
       background-color: #f4f4f4;
@@ -51,10 +54,8 @@
     .logo {
       max-width: 200px;
       height: auto;
-      margin-top: -60px;
-      margin-bottom: -60px;
-      width: 100%;
-      max-width: 200px;
+      margin: 0 auto 20px auto; /* Wyśrodkowanie i odstęp poniżej */
+      display: block;
     }
 
     /* Responsywność */
@@ -65,8 +66,7 @@
       }
       .logo {
         max-width: 150px;
-        margin-top: -50px;
-        margin-bottom: -50px;
+        margin-bottom: 15px;
       }
       h1 {
         font-size: 1.8em;
@@ -91,8 +91,7 @@
       }
       .logo {
         max-width: 120px;
-        margin-top: -40px;
-        margin-bottom: -40px;
+        margin-bottom: 10px;
       }
       h1 {
         font-size: 1.6em;
@@ -117,8 +116,7 @@
       }
       .logo {
         max-width: 100px;
-        margin-top: -30px;
-        margin-bottom: -30px;
+        margin-bottom: 5px;
       }
       h1 {
         font-size: 1.4em;
@@ -139,7 +137,7 @@
 </head>
 <body>
   <header>
-    <!-- Dodanie logo HW na samej górze, wyśrodkowanego z dodatkowym margin -->
+    <!-- Dodanie logo HW na samej górze, wyśrodkowanego -->
     <img src="images/hot-wheels-vector-logo.svg" alt="Hot Wheels Logo" class="logo" />
     
     <h1>Lista modeli HotWheels - Damian M</h1>
