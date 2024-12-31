@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lista modeli, które chcę kupić</title>
+  
+  <style>
+    /* Podstawowe style/reset */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+
+    /* Kontener górny na przycisk powrotu (opcjonalnie, jeśli chcesz) */
+    #back-button-container {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    #back-button {
+      display: flex;
+      align-items: center;
+      padding: 8px 16px;
+      background-color: #f4f4f4;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      text-decoration: none;
+      color: #333;
+      font-size: 1em;
+    }
+    #back-button:hover {
+      background-color: #e0e0e0;
+    }
+    /* Ikonka/strzałka w lewo */
+    .arrow-left {
+      margin-right: 8px;
+      font-weight: bold;
+    }
+
+    /* Zapobieganie zaznaczaniu elementów */
+    tr, img {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      -khtml-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+
+    /* Tabela z listą modeli */
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+      /* Pozwala zawijać tekst */
+      white-space: normal;
+      vertical-align: middle;
+    }
+    th {
+      background-color: #f4f4f4;
+    }
+
+    /* Wyróżnienie wiersza wybranego (jeśli chcesz podkreślać) */
+    tr.selected {
+      background-color: #caf0f8;
+    }
+
+    /* Powiększamy checkbox i ustawiamy kursory */
+    input[type="checkbox"] {
+      transform: scale(1.3);
+      cursor: pointer;
+    }
+
+    /*
+     * Kontener dla podsumowania i przycisku "Kopiuj".
+     */
+    #summary-container {
+      margin-top: 20px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    #summary {
+      font-size: 1em;
+      max-width: 700px;
+    }
+
+    /* Przycisk "Kopiuj" */
+    #copyBtn {
+      display: none;  /* Pokażemy go dopiero, gdy cokolwiek zostanie zaznaczone */
+      padding: 8px 16px;
+      font-size: 1em;
+      border: none;
+      border-radius: 5px;
+      background-color: #007BFF;
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.2s ease-in-out;
+    }
+    #copyBtn:hover {
+      background-color: #0056b3;
+    }
+
+    /* Styl zdjęć w tabeli */
+    .model-photo {
+      max-width: 80px;
+      max-height: 80px;
+      cursor: pointer; /* miniatura jest klikalna */
+    }
+
+    /* ======= POPUP Z OBRAZKIEM ======= */
+    #image-popup {
+      display: none; /* ukryte domyślnie */
+      position: fixed;
+      top: 0; left: 0; 
+      width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.8); 
+      justify-content: center; 
+      align-items: center;
+      z-index: 2000; /* powyżej innych elementów na stronie */
+    }
+    #image-popup img {
+      max-width: 90%;
+      max-height: 90%;
+      cursor: pointer;
+    }
+    #image-popup .close-button {
+      position: absolute;
+      top: 20px; right: 30px;
+      color: #fff;
+      font-size: 32px;
+      cursor: pointer;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Opcjonalnie przycisk powrotu -->
+  <div id="back-button-container">
+    <button id="back-button" onclick="window.location.href='../index.html'">
+      <span class="arrow-left">←</span>
+      Powrót
+    </button>
+  </div>
+
+  <h1>Lista modeli, które chcę kupić</h1>
+
+  <!-- Kontener na tabelę z danymi -->
+  <div id="table-container">
+    <p>Wczytywanie danych...</p>
+  </div>
+
+  <!-- Kontener z przyciskiem kopiowania i podsumowaniem -->
+  <div id="summary-container">
+    <button id="copyBtn" onclick="copySummary()">Kopiuj</button>
+    <div id="summary">
+      Zaznacz wiersze z modelami, które posiadasz, i prześlij wiadomość do sprzedawcy.
+    </div>
+  </div>
+
+  <!-- ====== POPUP DO POWIĘKSZANIA ZDJĘĆ ===== -->
+  <div id="image-popup">
+    <span class="close-button" id="popup-close">&times;</span>
+    <img id="popup-image" src="" alt="Photo fullscreen" />
+  </div>
+
+  <script>
+    /************************************************************
+     * KONFIGURACJA KOLUMN
+     ************************************************************/
+    // Zakładamy, że to samo CSV lub inne – dostosuj link
+    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pub?gid=1713753991&single=true&output=csv';
+
+    // Tutaj nie filtrujemy kolumny Sell, bo to "modele, które chcę kupić" – 
+    // ewentualnie filtr może być inny, w zależności od CSV. 
+    // Jeśli brak filtra, to wczytujemy wszystkie wiersze.
+    // Albo definicja: brak SELL? – odkomentuj, jeśli jest potrzebny.
+
+    // Nazwy nagłówków (7 kolumn):
+    // 1) Series
+    // 2) Year
+    // 3) Toy #
+    // 4) Casting
+    // 5) Set #
+    // 6) Photo
+    // 7) Posiadam (checkbox)
+    const HEADERS = [
+      'Series',
+      'Year',
+      'Toy #',
+      'Casting',
+      'Set #',
+      'Photo',
+      'Posiadam'
+    ];
+
+    // Kolumny z CSV do wypełnienia (5 kolumn):
+    // Series(0), Year(1), Toy #(3), Casting(5), Set #(7)
+    const COLUMNS_FROM_CSV = [0,1,3,5,7];
+
+    // Mapa toyId -> photo (jedno zdjęcie)
+    const imagesMap = {};
+
+    function parseIntOr(val, def = 1) {
+      const num = parseInt(val, 10);
+      return isNaN(num) ? def : num;
+    }
+
+    /* ------ KONFIGURACJA POBIERANIA OBRAZKÓW Z GITHUB ------ */
+    // Folder: buy/images
+    const repoOwner = "DamianMog";
+    const repoName = "hw_models.github.io";
+    const folderPath = "buy/images";  
+    const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${folderPath}`;
+
+    // Pobieramy listę plików z buy/images
+    fetch(apiUrl)
+      .then(resp => {
+        if (!resp.ok) throw new Error(`Błąd GitHub API (Buy) : ${resp.status}`);
+        return resp.json();
+      })
+      .then(files => {
+        console.log("Pobrane pliki z GitHuba (folder buy/images):", files);
+
+        files.forEach(file => {
+          if (file.type === "file" && file.name.match(/\.(jpg|jpeg|png|gif)$/i)) {
+            // Nazwa pliku np. "HTC54.jpg"
+            const nameNoExt = file.name.replace(/\.(jpg|jpeg|png|gif)$/i, ""); // "HTC54"
+            const toyId = nameNoExt.trim(); // usuwamy spacje, ewent. standaryzacja
+
+            // Zapisujemy w imagesMap[toyId].photo
+            if (!imagesMap[toyId]) {
+              imagesMap[toyId] = { photo: null };
+            }
+            imagesMap[toyId].photo = file.download_url;
+          }
+        });
+
+        console.log("imagesMap (Buy) =", imagesMap);
+        fetchAndBuildTable();
+      })
+      .catch(err => {
+        console.error("Błąd podczas pobierania plików z GitHub (Buy):", err);
+        // Nawet przy błędzie spróbujmy wczytać CSV
+        fetchAndBuildTable();
+      });
+
+    /************************************************************
+     * POBIERANIE CSV I BUDOWA TABELI
+     ************************************************************/
+    function fetchAndBuildTable() {
+      fetch(csvUrl)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Błąd sieci (CSV Buy): ${response.status}`);
+          }
+          return response.text();
+        })
+        .then(csvData => {
+          const lines = csvData
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line !== '');
+
+          const allRows = lines.map(line => line.split(','));
+          if (allRows.length < 2) {
+            throw new Error('CSV: brak danych lub za mało wierszy (Buy).');
+          }
+
+          // Pomijamy pierwszy wiersz (oryginalne headery)
+          const bodyRows = allRows.slice(1);
+
+          // Możesz zastosować filtr, jeśli w CSV jest jakaś kolumna określająca "BUY"
+          // Na razie wczytujemy wszystkie wiersze.
+          buildTable(bodyRows);
+        })
+        .catch(err => {
+          console.error('Błąd podczas wczytywania CSV (Buy):', err);
+          document.getElementById('table-container').innerHTML =
+            '<p>Wystąpił błąd podczas wczytywania danych.</p>';
+        });
+    }
+
+    function buildTable(rowsData) {
+      const table = document.createElement('table');
+
+      // THEAD
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+
+      HEADERS.forEach(h => {
+        const th = document.createElement('th');
+        th.textContent = h;
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      // TBODY
+      const tbody = document.createElement('tbody');
+
+      rowsData.forEach(row => {
+        const tr = document.createElement('tr');
+
+        // Wypełnienie kolumn z CSV (5 kolumn)
+        COLUMNS_FROM_CSV.forEach(colIndex => {
+          const td = document.createElement('td');
+          td.textContent = (row[colIndex] || '').trim();
+          tr.appendChild(td);
+        });
+
+        // Odczyt toyId => CSV index 3 (Toy #)
+        const toyId = (row[3] || '').trim();
+        console.log("toyId z CSV (Buy) =", toyId);
+
+        // Kolumna "Photo"
+        const tdPhoto = document.createElement('td');
+        if (toyId && imagesMap[toyId]?.photo) {
+          const img = document.createElement('img');
+          img.classList.add('model-photo');
+          img.src = imagesMap[toyId].photo;
+
+          // Kliknięcie -> popup fullscreen
+          img.addEventListener('click', () => {
+            showImagePopup(imagesMap[toyId].photo);
+          });
+
+          tdPhoto.appendChild(img);
+        } else {
+          tdPhoto.innerHTML = ''; // brak zdjęcia
+        }
+        tr.appendChild(tdPhoto);
+
+        // Kolumna "Posiadam" (checkbox)
+        const tdCheckbox = document.createElement('td');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.addEventListener('change', updateSummary);
+        tdCheckbox.appendChild(checkbox);
+        tr.appendChild(tdCheckbox);
+
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+
+      // Wstawiamy do kontenera
+      const container = document.getElementById('table-container');
+      container.innerHTML = '';
+      container.appendChild(table);
+
+      updateSummary(); // pierwsze wywołanie
+    }
+
+    /************************************************************
+     * POPUP ZE ZDJĘCIEM (FULL SCREEN) - identycznie jak w sell.html
+     ************************************************************/
+    const imagePopup = document.getElementById('image-popup');
+    const popupImage = document.getElementById('popup-image');
+    const popupCloseBtn = document.getElementById('popup-close');
+
+    // Kliknięcie w "X" zamyka popup
+    popupCloseBtn.addEventListener('click', hideImagePopup);
+
+    // Kliknięcie w tło lub sam obrazek -> zamyka popup
+    imagePopup.addEventListener('click', hideImagePopup);
+
+    // ESC zamyka popup
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        hideImagePopup();
+      }
+    });
+
+    function showImagePopup(src) {
+      popupImage.src = src;
+      imagePopup.style.display = 'flex';
+    }
+    function hideImagePopup() {
+      imagePopup.style.display = 'none';
+      popupImage.src = '';
+    }
+
+    /************************************************************
+     * OBSŁUGA PODSUMOWANIA I KOPIOWANIA
+     ************************************************************/
+    function updateSummary() {
+      const table = document.querySelector('#table-container table');
+      if (!table) return;
+
+      const rows = table.querySelectorAll('tbody tr');
+      let selectedCount = 0;
+
+      const selectedModels = [];
+
+      rows.forEach(row => {
+        // Indeksy w finalnej tabeli:
+        // 0 -> Series
+        // 1 -> Year
+        // 2 -> Toy #
+        // 3 -> Casting
+        // 4 -> Set #
+        // 5 -> Photo
+        // 6 -> Posiadam (checkbox)
+        const checkboxCell = row.cells[6];
+        const checkbox = checkboxCell.querySelector('input[type="checkbox"]');
+        if (!checkbox) return;
+
+        if (checkbox.checked) {
+          selectedCount++;
+          row.classList.add('selected');
+
+          // Toy # => index 2
+          const toyText = row.cells[2].textContent;
+          selectedModels.push(toyText);
+        } else {
+          row.classList.remove('selected');
+        }
+      });
+
+      const summaryEl = document.getElementById('summary');
+      const copyBtn = document.getElementById('copyBtn');
+
+      if (selectedCount === 0) {
+        summaryEl.textContent =
+          'Zaznacz wiersze z modelami, które posiadasz, i prześlij wiadomość do sprzedawcy.';
+        copyBtn.style.display = 'none';
+        return;
+      }
+
+      copyBtn.style.display = 'inline-block';
+
+      // Budujemy ciąg: "Wybrano X model(i). Szczegóły: HTC54, HTC99, ..."
+      const joinedModels = selectedModels.join(', ');
+      summaryEl.textContent =
+        `Wybrano ${selectedCount} model(i).\n` +
+        `Szczegóły: ${joinedModels}.`;
+    }
+
+    function copySummary() {
+      const summaryText = document.getElementById('summary').textContent;
+      navigator.clipboard.writeText(summaryText).then(() => {
+        alert('Skopiowano treść podsumowania!');
+      });
+    }
+  </script>
+</body>
+</html>
