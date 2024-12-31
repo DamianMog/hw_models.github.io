@@ -11,6 +11,35 @@
       font-family: Arial, sans-serif;
       margin: 20px;
     }
+
+    /* Kontener górny na przycisk powrotu */
+    #back-button-container {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    #back-button {
+      display: flex;
+      align-items: center;
+      padding: 8px 16px;
+      background-color: #f4f4f4;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      text-decoration: none;
+      color: #333;
+      font-size: 1em;
+    }
+    #back-button:hover {
+      background-color: #e0e0e0;
+    }
+    /* Ikonka/strzałka w lewo */
+    .arrow-left {
+      margin-right: 8px;
+      font-weight: bold;
+    }
+
     /* Zapobieganie zaznaczaniu elementów */
     tr, img {
       -webkit-touch-callout: none;
@@ -95,7 +124,7 @@
       cursor: pointer; /* miniatura jest klikalna */
     }
 
-    /* ======= POPUP Z OBRASKIEM ======= */
+    /* ======= POPUP Z OBRAZKIEM ======= */
     #image-popup {
       display: none; /* ukryte domyślnie */
       position: fixed;
@@ -109,7 +138,6 @@
     #image-popup img {
       max-width: 90%;
       max-height: 90%;
-      /* chcemy też, by kliknięcie w obrazek zamykało popup */
       cursor: pointer;
     }
     #image-popup .close-button {
@@ -123,6 +151,14 @@
   </style>
 </head>
 <body>
+
+  <!-- Przycisk powrotu -->
+  <div id="back-button-container">
+    <button id="back-button" onclick="window.location.href='../index.html'">
+      <span class="arrow-left">←</span>
+      Powrót
+    </button>
+  </div>
 
   <h1>Lista modeli na sprzedaż (z podglądem zdjęć)</h1>
 
@@ -185,7 +221,8 @@
     /* ------ KONFIGURACJA POBIERANIA OBRAZKÓW Z GITHUB ------ */
     const repoOwner = "DamianMog";
     const repoName = "hw_models.github.io";
-    const folderPath = "images";
+    // Zmieniamy folder na '/sell/images'
+    const folderPath = "sell/images";  
     const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${folderPath}`;
 
     fetch(apiUrl)
@@ -194,7 +231,7 @@
         return resp.json();
       })
       .then(files => {
-        console.log("Pobrane pliki z GitHuba (folder images):", files);
+        console.log("Pobrane pliki z GitHuba (folder sell/images):", files);
 
         files.forEach(file => {
           if (file.type === "file" && file.name.match(/\.(jpg|jpeg|png|gif)$/i)) {
