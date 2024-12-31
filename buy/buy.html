@@ -275,12 +275,11 @@
           const filteredRows = bodyRows.filter(row => {
             const yearVal = (row[1] || '').trim(); // Year
             const inVal = (row[8] || '').trim().toLowerCase(); // Zakładam, że 'In' jest kolumną 8
-            const seriesVal = (row[0] || '').trim();
 
-            return yearVal === '2024' && inVal === 'nie' && seriesVal.toLowerCase() !== 'red edition';
+            return yearVal === '2024' && inVal === 'nie';
           });
 
-          console.log("Ilość wierszy po filtrze Year=2024, In=Nie, Series!=Red Edition:", filteredRows.length);
+          console.log("Ilość wierszy po filtrze Year=2024 i In=Nie:", filteredRows.length);
           buildTable(filteredRows);
         })
         .catch(err => {
