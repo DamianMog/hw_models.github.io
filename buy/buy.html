@@ -347,6 +347,7 @@
           const img = document.createElement('img');
           img.classList.add('model-photo');
           img.src = imagesMap[toyId];
+          img.alt = `Foto modelu ${toyId}`;
           // Kliknięcie w zdjęcie => fullscreen
           img.addEventListener('click', () => {
             showImagePopup(imagesMap[toyId]);
@@ -359,7 +360,14 @@
         const tdPosiadam = document.createElement('td');
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
-        checkbox.addEventListener('change', updateSummary);
+        checkbox.addEventListener('change', function() {
+          if (this.checked) {
+            tr.classList.add('selected');
+          } else {
+            tr.classList.remove('selected');
+          }
+          updateSummary();
+        });
         tdPosiadam.appendChild(checkbox);
         tr.appendChild(tdPosiadam);
 
