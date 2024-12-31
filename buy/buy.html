@@ -272,6 +272,18 @@
           }
 
           const bodyRows = allRows.slice(1); // pomijamy pierwszy wiersz (headery)
+
+          // Logowanie informacji do konsoli
+          const totalRows = bodyRows.length;
+          console.log("Łączna liczba wierszy w CSV:", totalRows);
+
+          const rowsWithYear2024 = bodyRows.filter(row => row[1].trim() === '2024').length;
+          console.log("Liczba wierszy gdzie Year == 2024:", rowsWithYear2024);
+
+          const rowsWithInNie = bodyRows.filter(row => row[8] && row[8].trim().toLowerCase() === 'nie').length;
+          console.log("Liczba wierszy gdzie In == Nie:", rowsWithInNie);
+
+          // Filtrowanie danych: Year == 2024 i In == Nie
           const filteredRows = bodyRows.filter(row => {
             const yearVal = (row[1] || '').trim(); // Year
             const inVal = (row[8] || '').trim().toLowerCase(); // Zakładam, że 'In' jest kolumną 8
