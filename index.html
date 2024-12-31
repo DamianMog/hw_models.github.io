@@ -53,14 +53,19 @@
     <!-- Sekcja: Lista modeli do kupienia -->
     <div class="section-box">
       <h2>Lista modeli, które chcę kupić:</h2>
-      <button onclick="window.location.href='/buy/'">Przejdź do listy (buy)</button>
+      <!-- Zakładamy, że plik buy.html znajduje się w folderze /buy -->
+      <button onclick="window.location.href='buy/buy.html'">
+        Przejdź do listy (buy)
+      </button>
     </div>
 
     <!-- Sekcja: Lista modeli do sprzedania -->
     <div class="section-box">
       <h2>Lista modeli, które chcę sprzedać:</h2>
-      <!-- Tutaj link do /sell/sell.html -->
-      <button onclick="window.location.href='/sell/sell.html'">Przejdź do listy (sell)</button>
+      <!-- Plik sell.html w folderze /sell -->
+      <button onclick="window.location.href='sell/sell.html'">
+        Przejdź do listy (sell)
+      </button>
     </div>
   </main>
 </body>
