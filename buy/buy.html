@@ -290,16 +290,16 @@
           const rowsWithInNie = bodyRows.filter(row => row[2] && row[2].trim().toLowerCase() === 'nie').length;
           console.log("Liczba wierszy gdzie In Collection == Nie:", rowsWithInNie);
 
-          // Filtrowanie danych: Year == 2024, In Collection == Nie, Series != "Red Series"
+          // Filtrowanie danych: Year == 2024, In Collection == Nie, Series != "Red Edition"
           const filteredRows = bodyRows.filter(row => {
             const yearVal = (row[1] || '').trim(); // Year
             const inVal = (row[2] || '').trim().toLowerCase(); // 'In Collection' jest kolumną 2
             const seriesVal = (row[0] || '').trim();
 
-            return yearVal === '2024' && inVal === 'nie' && seriesVal.toLowerCase() !== 'red series';
+            return yearVal === '2024' && inVal === 'nie' && seriesVal.toLowerCase() !== 'red edition';
           });
 
-          console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie i Series!=Red Series:", filteredRows.length);
+          console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie i Series!=Red Edition:", filteredRows.length);
           buildTable(filteredRows);
         })
         .catch(err => {
