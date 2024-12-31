@@ -199,9 +199,9 @@
     ];
 
     // Kolumny z CSV do wypełnienia (Series, Year, Toy #, Casting, Set #)
-    // Zakładam, że Series = 0, Year =1, Toy #=2, Casting=3, Set #=4
+    // Zakładam, że Series = 0, Year =1, Toy #=3, Casting=4, Set #=5
     // Dostosuj indeksy zgodnie z rzeczywistą strukturą CSV
-    const COLUMNS_FROM_CSV = [0, 1, 2, 3, 4];
+    const COLUMNS_FROM_CSV = [0, 1, 3, 4, 5];
 
     // Mapa toyId -> { photo }
     const imagesMap = {};
@@ -280,13 +280,13 @@
           const rowsWithYear2024 = bodyRows.filter(row => row[1] && row[1].trim() === '2024').length;
           console.log("Liczba wierszy gdzie Year == 2024:", rowsWithYear2024);
 
-          const rowsWithInNie = bodyRows.filter(row => row[8] && row[8].trim().toLowerCase() === 'nie').length;
+          const rowsWithInNie = bodyRows.filter(row => row[2] && row[2].trim().toLowerCase() === 'nie').length;
           console.log("Liczba wierszy gdzie In Collection == Nie:", rowsWithInNie);
 
           // Filtrowanie danych: Year == 2024, In Collection == Nie, Series != "Red Series"
           const filteredRows = bodyRows.filter(row => {
             const yearVal = (row[1] || '').trim(); // Year
-            const inVal = (row[9] || '').trim().toLowerCase(); // Zakładam, że 'In Collection' jest kolumną 9
+            const inVal = (row[2] || '').trim().toLowerCase(); // 'In Collection' jest kolumną 2
             const seriesVal = (row[0] || '').trim();
 
             return yearVal === '2024' && inVal === 'nie' && seriesVal.toLowerCase() !== 'red series';
@@ -331,7 +331,7 @@
         });
 
         // Odczyt toyId
-        const toyId = (row[2] || '').trim(); // Toy # jest w kolumnie 2
+        const toyId = (row[3] || '').trim(); // Toy # jest w kolumnie 3
         console.log("toyId z CSV =", toyId);
 
         // Kolumna Photo
