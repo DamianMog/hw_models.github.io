@@ -238,8 +238,8 @@
         console.log("Pobrane pliki z GitHuba (folder buy/images):", files);
 
         files.forEach(file => {
-          if (file.type === "file" && file.name.match(/\.(jpg|jpeg|png|gif)$/i)) {
-            const nameNoExt = file.name.replace(/\.(jpg|jpeg|png|gif)$/i, "");
+          if (file.type === "file" && file.name.match(/\.(jpg|jpeg|png|gif|webp|jfif)$/i)) { // Dodano webp i jfif
+            const nameNoExt = file.name.replace(/\.(jpg|jpeg|png|gif|webp|jfif)$/i, ""); // Dodano webp i jfif
             const toyId = nameNoExt.replace(/\./g, '').trim(); // usunięcie kropek i trim
             console.log("Plik oryginalny:", file.name, " -> toyId:", toyId);
 
