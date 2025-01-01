@@ -272,6 +272,12 @@
 
           const headerLine = lines[0];
           const headers = headerLine.split(',').map(header => header.trim());
+          console.log("Nagłówki z pliku CSV:", headers);
+
+          // Logowanie kolejności nagłówków
+          headers.forEach((header, index) => {
+            console.log(`Indeks ${index}: ${header}`);
+          });
 
           // Sprawdzenie, czy nagłówek "In Collection" istnieje
           if (!headers.includes('In Collection')) {
@@ -285,19 +291,45 @@
 
           const bodyRows = allRows;
 
+          // Logowanie informacji do konsoli
+          const totalRows = bodyRows.length;
+          console.log("Łączna liczba wierszy w CSV:", totalRows);
+
+          const rowsWithYear2023 = bodyRows.filter(row => row[1] && row[1].trim() === '2023').length;
+          console.log("Liczba wierszy gdzie Year == 2023:", rowsWithYear2023);
+
+          const rowsWithYear2024 = bodyRows.filter(row => row[1] && row[1].trim() === '2024').length;
+          console.log("Liczba wierszy gdzie Year == 2024:", rowsWithYear2024);
+
+          const rowsWithYear2025 = bodyRows.filter(row => row[1] && row[1].trim() === '2025').length;
+          console.log("Liczba wierszy gdzie Year == 2025:", rowsWithYear2025);
+
+          const rowsWithYearPremium = bodyRows.filter(row => row[1] && row[1].trim().toLowerCase() === 'premium').length;
+          console.log("Liczba wierszy gdzie Year == Premium:", rowsWithYearPremium);
+
+          const rowsWithInNie = bodyRows.filter(row => row[IN_COLLECTION_INDEX] && row[IN_COLLECTION_INDEX].trim().toLowerCase() === 'nie').length;
+          console.log("Liczba wierszy gdzie In Collection == Nie:", rowsWithInNie);
+
+          const rowsWithInTak = bodyRows.filter(row => row[IN_COLLECTION_INDEX] && row[IN_COLLECTION_INDEX].trim().toLowerCase() === 'tak').length;
+          console.log("Liczba wierszy gdzie In Collection == Tak:", rowsWithInTak);
+
           // Filtrowanie danych: Year == 2024, In Collection == Nie
           const filteredRows = bodyRows.filter(row => {
             const yearVal = (row[1] || '').trim(); // Year
-            const inVal = (row[IN_COLLECTION_INDEX] || '').trim().toLowerCase(); // 'In Collection'
+            const inVal = (row[IN_COLLECTION_INDEX] || '').trim().toLowerCase(); // 'In Collection' jest kolumną IN_COLLECTION_INDEX
 
             return yearVal === '2024' && inVal === 'nie';
           });
+
+          console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie:", filteredRows.length);
 
           // Filtrowanie danych: Year == 2024, In Collection == Nie i Series != Red Edition
           const furtherFilteredRows = filteredRows.filter(row => {
             const seriesVal = (row[0] || '').trim();
             return seriesVal.toLowerCase() !== 'red edition';
           });
+
+          console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie i Series!=Red Edition:", furtherFilteredRows.length);
 
           /************************************************************
            * DODANIE FILTRACJI NA PODSTAWIE "In Collection"
@@ -307,24 +339,33 @@
             const inCollection = row[IN_COLLECTION_INDEX] ? row[IN_COLLECTION_INDEX].trim() : '';
             return !inCollection.includes('Exclusive');
           });
+          console.log(`Ilość wierszy po filtrze Year=2024, In Collection=Nie, Series!=Red Edition, bez "Exclusive": ${withoutExclusive.length}`);
 
           // Filtrowanie bez "Super Treasure Hunt"
           const withoutSuperTreasureHunt = furtherFilteredRows.filter(row => {
             const inCollection = row[IN_COLLECTION_INDEX] ? row[IN_COLLECTION_INDEX].trim() : '';
             return !inCollection.includes('Super Treasure Hunt');
           });
+          console.log(`Ilość wierszy po filtrze Year=2024, In Collection=Nie, Series!=Red Edition, bez "Super Treasure Hunt": ${withoutSuperTreasureHunt.length}`);
 
           // Filtrowanie bez "Exclusive" i "Super Treasure Hunt"
           const withoutBoth = furtherFilteredRows.filter(row => {
             const inCollection = row[IN_COLLECTION_INDEX] ? row[IN_COLLECTION_INDEX].trim() : '';
             return !inCollection.includes('Exclusive') && !inCollection.includes('Super Treasure Hunt');
           });
+          console.log(`Ilość wierszy po filtrze Year=2024, In Collection=Nie, Series!=Red Edition, bez "Super Treasure Hunt" & "Exclusive": ${withoutBoth.length}`);
 
           // Ostateczne filtrowanie do wyświetlenia w tabeli
           const finalFilteredRows = withoutBoth;
 
+          // Informacja o użytych nagłówkach do poszczególnych czynności
+          console.log("Użyte nagłówki do filtrowania:");
+          console.log(`- Year: ${headers[1]} (indeks 1)`);
+          console.log(`- In Collection: ${headers[IN_COLLECTION_INDEX]} (indeks ${IN_COLLECTION_INDEX})`);
+          console.log(`- Series: ${headers[0]} (indeks 0)`);
+
           buildTable(finalFilteredRows);
-        })
+        }
         .catch(err => {
           console.error('Błąd podczas wczytywania CSV:', err);
           // Poprawiono przypisanie innerHTML na jednej linii, aby uniknąć błędu składniowego
