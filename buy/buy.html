@@ -205,10 +205,9 @@
       'Posiadam'
     ];
 
-    // Kolumny z CSV do wypełnienia (Series, Year, Toy #, Casting, Set #)
-    // Zakładam, że Series = 0, Year =1, Toy #=3, Casting=4, Set #=5
-    // Notes jest na kolumnie 7 (indeks 7)
-    const COLUMNS_FROM_CSV = [0, 1, 3, 4, 5];
+    // Kolumny z CSV do wypełnienia (Series, Year, Toy #, Casting, Set #, Photo)
+    // Zakładam, że Series = 0, Year =1, Toy #=2, Casting=3, Set #=4, Photo=5
+    const COLUMNS_FROM_CSV = [0, 1, 2, 3, 4, 5];
 
     // Mapa toyId -> { photo }
     const imagesMap = {};
@@ -371,7 +370,7 @@
       filteredRows.forEach(row => {
         const tr = document.createElement('tr');
 
-        // Wypełnienie kolumn: Series, Year, Toy #, Casting, Set #
+        // Wypełnienie kolumn: Series, Year, Toy #, Casting, Set #, Photo
         COLUMNS_FROM_CSV.forEach((colIndex) => {
           const td = document.createElement('td');
           td.textContent = (row[colIndex] || '').trim();
@@ -379,7 +378,7 @@
         });
 
         // Odczyt toyId
-        const toyId = (row[3] || '').trim(); // Toy # jest w kolumnie 3
+        const toyId = (row[2] || '').trim(); // Toy # jest w kolumnie 2
         console.log("toyId z CSV =", toyId);
 
         // Kolumna Photo
