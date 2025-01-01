@@ -167,7 +167,7 @@
   </div>
 
   <h1>Lista modeli, które chcę kupić</h1>
-  <h3>Jeżeli posiadasz na sprzedaż model z poniższej listy, możesz go zaznaczyć, a następnie skopiować podsumowanie które znajduję się pod tabelą. Prześlij takie podsumowanie do mnie w celu sfinalizowania zakupy.</h3>
+  <h3>Jeżeli posiadasz na sprzedaż model z poniższej listy, możesz go zaznaczyć, a następnie skopiować podsumowanie które znajduje się pod tabelą. Prześlij takie podsumowanie do mnie w celu sfinalizowania zakupu.</h3>
   
   <!-- Kontener na tabelę z danymi -->
   <div id="table-container">
@@ -212,6 +212,16 @@
 
     // Mapa toyId -> { photo }
     const imagesMap = {};
+
+    // Tablica fraz do wykluczenia w kolumnie "Notes"
+    const excludeNotes = [
+      'super treasure hunt',
+      'kroger exclusive',
+      'target exclusive',
+      'walmart exclusive',
+      'dollar general exclusive',
+      '"from the vault" exclusive'
+    ];
 
     // Funkcja do parsowania integera z fallbackiem
     function parseIntOr(val, def = 1) {
@@ -287,19 +297,26 @@
           const rowsWithYear2024 = bodyRows.filter(row => row[1] && row[1].trim() === '2024').length;
           console.log("Liczba wierszy gdzie Year == 2024:", rowsWithYear2024);
 
-          const rowsWithInNie = bodyRows.filter(row => row[2] && row[2].trim().toLowerCase() === 'nie').length;
-          console.log("Liczba wierszy gdzie In Collection == Nie:", rowsWithInNie);
+          const rowsWithInNie = bodyRows.filter(row => row[6] && row[6].trim().toLowerCase() === 'nie').length;
+          console.log("Liczba wierszy gdzie Posiadam == Nie:", rowsWithInNie);
 
-          // Filtrowanie danych: Year == 2024, In Collection == Nie, Series != "Red Edition"
+          // Filtrowanie danych:
+          // Year == 2024,
+          // Posiadam == Nie,
+          // Series != "Red Edition",
+          // Notes nie zawierają określonych fraz
           const filteredRows = bodyRows.filter(row => {
             const yearVal = (row[1] || '').trim(); // Year
-            const inVal = (row[2] || '').trim().toLowerCase(); // 'In Collection' jest kolumną 2
+            const inVal = (row[6] || '').trim().toLowerCase(); // 'Posiadam' jest kolumną 6
             const seriesVal = (row[0] || '').trim();
+            const notesVal = (row[7] || '').trim().toLowerCase(); // Notes jest kolumną 7
 
-            return yearVal === '2024' && inVal === 'nie' && seriesVal.toLowerCase() !== 'red edition';
+            const hasExcludedNotes = excludeNotes.some(phrase => notesVal.includes(phrase));
+
+            return yearVal === '2024' && inVal === 'nie' && seriesVal.toLowerCase() !== 'red edition' && !hasExcludedNotes;
           });
 
-          console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie i Series!=Red Edition:", filteredRows.length);
+          console.log("Ilość wierszy po filtrze Year=2024, Posiadam=Nie, Series!=Red Edition oraz Notes nie zawierają określonych fraz:", filteredRows.length);
           buildTable(filteredRows);
         })
         .catch(err => {
