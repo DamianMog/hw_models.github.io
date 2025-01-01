@@ -343,7 +343,7 @@
           const finalFilteredRows = withoutBoth;
 
           buildTable(finalFilteredRows);
-        }
+        })
         .catch(err => {
           console.error('Błąd podczas wczytywania CSV:', err);
           document.getElementById('table-container').innerHTML =
