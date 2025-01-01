@@ -236,13 +236,12 @@
         return resp.json();
       })
       .then(files => {
-        console.log("Pobrane pliki z GitHuba (folder buy/images):", files);
+        // Usunięto wszystkie istniejące wiadomości debugujące
 
         files.forEach(file => {
           if (file.type === "file" && file.name.match(/\.(jpg|jpeg|png|gif|webp|jfif)$/i)) { // Dodano webp i jfif
             const nameNoExt = file.name.replace(/\.(jpg|jpeg|png|gif|webp|jfif)$/i, ""); // Dodano webp i jfif
             const toyId = nameNoExt.replace(/\./g, '').trim(); // usunięcie kropek i trim
-            console.log("Plik oryginalny:", file.name, " -> toyId:", toyId);
 
             if (toyId) {
               imagesMap[toyId] = file.download_url;
@@ -250,7 +249,6 @@
           }
         });
 
-        console.log("imagesMap =", imagesMap);
         fetchAndBuildTable();
       })
       .catch(err => {
@@ -284,23 +282,43 @@
           const totalRows = bodyRows.length;
           console.log("Łączna liczba wierszy w CSV:", totalRows);
 
+          const rowsWithYear2023 = bodyRows.filter(row => row[1] && row[1].trim() === '2023').length;
+          console.log("Liczba wierszy gdzie Year == 2023:", rowsWithYear2023);
+
           const rowsWithYear2024 = bodyRows.filter(row => row[1] && row[1].trim() === '2024').length;
           console.log("Liczba wierszy gdzie Year == 2024:", rowsWithYear2024);
+
+          const rowsWithYear2025 = bodyRows.filter(row => row[1] && row[1].trim() === '2025').length;
+          console.log("Liczba wierszy gdzie Year == 2025:", rowsWithYear2025);
+
+          const rowsWithYearPremium = bodyRows.filter(row => row[1] && row[1].trim().toLowerCase() === 'premium').length;
+          console.log("Liczba wierszy gdzie Year == Premium:", rowsWithYearPremium);
 
           const rowsWithInNie = bodyRows.filter(row => row[2] && row[2].trim().toLowerCase() === 'nie').length;
           console.log("Liczba wierszy gdzie In Collection == Nie:", rowsWithInNie);
 
-          // Filtrowanie danych: Year == 2024, In Collection == Nie, Series != "Red Edition"
+          const rowsWithInTak = bodyRows.filter(row => row[2] && row[2].trim().toLowerCase() === 'tak').length;
+          console.log("Liczba wierszy gdzie In Collection == Tak:", rowsWithInTak);
+
+          // Filtrowanie danych: Year == 2024, In Collection == Nie
           const filteredRows = bodyRows.filter(row => {
             const yearVal = (row[1] || '').trim(); // Year
             const inVal = (row[2] || '').trim().toLowerCase(); // 'In Collection' jest kolumną 2
-            const seriesVal = (row[0] || '').trim();
 
-            return yearVal === '2024' && inVal === 'nie' && seriesVal.toLowerCase() !== 'red edition';
+            return yearVal === '2024' && inVal === 'nie';
           });
 
-          console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie i Series!=Red Edition:", filteredRows.length);
-          buildTable(filteredRows);
+          console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie:", filteredRows.length);
+
+          // Filtrowanie danych: Year == 2024, In Collection == Nie i Series != Red Edition
+          const furtherFilteredRows = filteredRows.filter(row => {
+            const seriesVal = (row[0] || '').trim();
+            return seriesVal.toLowerCase() !== 'red edition';
+          });
+
+          console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie i Series!=Red Edition:", furtherFilteredRows.length);
+
+          buildTable(furtherFilteredRows);
         })
         .catch(err => {
           console.error('Błąd podczas wczytywania CSV:', err);
@@ -339,7 +357,6 @@
 
         // Odczyt toyId
         const toyId = (row[3] || '').trim(); // Toy # jest w kolumnie 3
-        console.log("toyId z CSV =", toyId);
 
         // Kolumna Photo
         const tdPhoto = document.createElement('td');
