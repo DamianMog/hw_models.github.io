@@ -207,7 +207,7 @@
 
     // Kolumny z CSV do wypełnienia (Series, Year, Toy #, Casting, Set #)
     // Zakładam, że Series = 0, Year =1, Toy #=3, Casting=4, Set #=5
-    // Dostosuj indeksy zgodnie z rzeczywistą strukturą CSV
+    // Notes jest na kolumnie 7 (indeks 7)
     const COLUMNS_FROM_CSV = [0, 1, 3, 4, 5];
 
     // Mapa toyId -> { photo }
@@ -222,6 +222,16 @@
       'dollar general exclusive',
       '"from the vault" exclusive'
     ];
+
+    // Inicjalizacja obiektu do liczenia wystąpień każdej frazy
+    const counts = {
+      'super treasure hunt': 0,
+      'kroger exclusive': 0,
+      'target exclusive': 0,
+      'walmart exclusive': 0,
+      'dollar general exclusive': 0,
+      '"from the vault" exclusive': 0
+    };
 
     // Funkcja do parsowania integera z fallbackiem
     function parseIntOr(val, def = 1) {
@@ -311,12 +321,26 @@
             const seriesVal = (row[0] || '').trim();
             const notesVal = (row[7] || '').trim().toLowerCase(); // Notes jest kolumną 7
 
-            const hasExcludedNotes = excludeNotes.some(phrase => notesVal.includes(phrase));
+            let rowExcluded = false;
 
-            return yearVal === '2024' && inVal === 'nie' && seriesVal.toLowerCase() !== 'red edition' && !hasExcludedNotes;
+            excludeNotes.forEach(phrase => {
+              if (notesVal.includes(phrase)) {
+                counts[phrase]++;
+                rowExcluded = true;
+              }
+            });
+
+            return yearVal === '2024' && inVal === 'nie' && seriesVal.toLowerCase() !== 'red edition' && !rowExcluded;
           });
 
           console.log("Ilość wierszy po filtrze Year=2024, Posiadam=Nie, Series!=Red Edition oraz Notes nie zawierają określonych fraz:", filteredRows.length);
+
+          // Logowanie liczby wierszy zawierających poszczególne frazy
+          console.log("Liczba wierszy wykluczonych ze względu na frazy w kolumnie Notes:");
+          for (const [phrase, count] of Object.entries(counts)) {
+            console.log(`${phrase}: ${count}`);
+          }
+
           buildTable(filteredRows);
         })
         .catch(err => {
