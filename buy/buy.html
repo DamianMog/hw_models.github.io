@@ -367,11 +367,11 @@
           console.log(`- Series: ${headers[0]} (indeks 0)`);
 
           buildTable(finalFilteredRows);
-        }
+        })
         .catch(err => {
           console.error('Błąd podczas wczytywania CSV:', err);
-          document.getElementById('table-container').innerHTML =
-            '<p>Wystąpił błąd podczas wczytywania danych.</p>';
+          // Poprawiono przypisanie innerHTML na jednej linii, aby uniknąć błędu składniowego
+          document.getElementById('table-container').innerHTML = '<p>Wystąpił błąd podczas wczytywania danych.</p>';
         });
     }
 
