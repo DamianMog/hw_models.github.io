@@ -50,6 +50,11 @@
       user-select: none;
     }
 
+    /* Pozwól na zaznaczanie tekstu w kolumnie "Toy #" */
+    table td:nth-child(3), table th:nth-child(3) {
+      user-select: text;
+    }
+
     /* Tabela z listą modeli */
     table {
       border-collapse: collapse;
@@ -99,6 +104,7 @@
     #summary {
       font-size: 1em;
       max-width: 700px;
+      white-space: pre-wrap; /* Zachowuje formatowanie tekstu */
     }
 
     /* Przycisk "Kopiuj" */
@@ -319,9 +325,13 @@
         const tr = document.createElement('tr');
 
         // Wypełnienie 8 kolumn z CSV
-        COLUMNS_FROM_CSV.forEach((colIndex) => {
+        COLUMNS_FROM_CSV.forEach((colIndex, idx) => {
           const td = document.createElement('td');
           td.textContent = (row[colIndex] || '').trim();
+          // Dodanie klasy dla kolumny "Toy #"
+          if (idx === 2) { // COLUMNS_FROM_CSV index 2 corresponds to "Toy #"
+            td.classList.add('toy-number');
+          }
           tr.appendChild(td);
         });
 
@@ -431,6 +441,7 @@
       const rows = table.querySelectorAll('tbody tr');
       let totalCost = 0;
       let selectedCount = 0;
+      let totalModelsSelected = 0;
 
       const selectedModels = [];
 
@@ -464,6 +475,7 @@
 
           const cost = priceValue * qty;
           totalCost += cost;
+          totalModelsSelected += qty;
 
           selectedModels.push(`${toyText} (x${qty}, ${cost}zł)`);
         } else {
@@ -485,7 +497,7 @@
 
       const joinedModels = selectedModels.join(', ');
       summaryEl.textContent =
-        `Wybrano ${selectedCount} model(i).\n` +
+        `Wybrano ${totalModelsSelected} model(i).\n` +
         `Szczegóły: ${joinedModels}.\n` +
         `Razem do zapłaty: ${totalCost.toFixed(2)} zł.`;
     }
