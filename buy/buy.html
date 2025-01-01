@@ -51,8 +51,8 @@
     }
 
     /* Włączenie zaznaczania tekstu w kolumnie "Toy #" */
-    table th:nth-child(3),
-    table td:nth-child(3) {
+    table th:nth-child(4),
+    table td:nth-child(4) {
       user-select: text;
     }
 
@@ -167,7 +167,7 @@
   </div>
 
   <h1>Lista modeli, które chcę kupić</h1>
-  <h3>Jeżeli posiadasz na sprzedaż model z poniższej listy, możesz go zaznaczyć, a następnie skopiować podsumowanie które znajduję się pod tabelą. Prześlij takie podsumowanie do mnie w celu sfinalizowania zakupu.</h3>
+  <h3>Jeżeli posiadasz na sprzedaż model z poniższej listy, możesz go zaznaczyć, a następnie skopiować podsumowanie które znajduje się pod tabelą. Prześlij takie podsumowanie do mnie w celu sfinalizowania zakupu.</h3>
   
   <!-- Kontener na tabelę z danymi -->
   <div id="table-container">
@@ -206,9 +206,12 @@
     ];
 
     // Kolumny z CSV do wypełnienia (Series, Year, Toy #, Casting, Set #)
-    // Zakładam, że Series = 0, Year =1, Toy #=2, Casting=3, Set #=4
+    // Zakładam, że Series = 0, Year =1, Toy #=3, Casting=4, Set #=5
     // Dostosuj indeksy zgodnie z rzeczywistą strukturą CSV
-    const COLUMNS_FROM_CSV = [0, 1, 2, 3, 4];
+    const COLUMNS_FROM_CSV = [0, 1, 3, 4, 5];
+
+    // Indeks kolumny "In Collection" (zero-based index)
+    const IN_COLLECTION_INDEX = 2; // Zmieniono z 7 na 2
 
     // Mapa toyId -> { photo }
     const imagesMap = {};
@@ -230,8 +233,6 @@
         return resp.json();
       })
       .then(files => {
-        // Usunięto istniejące logi debugujące
-
         files.forEach(file => {
           if (file.type === "file" && file.name.match(/\.(jpg|jpeg|png|gif|webp|jfif)$/i)) { // Dodano webp i jfif
             const nameNoExt = file.name.replace(/\.(jpg|jpeg|png|gif|webp|jfif)$/i, ""); // Dodano webp i jfif
@@ -265,55 +266,69 @@
             .map(line => line.trim())
             .filter(line => line !== '');
 
-          const allRows = lines.map(line => line.split(','));
-          if (allRows.length < 2) {
+          if (lines.length === 0) {
+            throw new Error('CSV jest pusty.');
+          }
+
+          const headerLine = lines[0];
+          const headers = headerLine.split(',').map(header => header.trim());
+
+          // Sprawdzenie, czy nagłówek "In Collection" istnieje
+          if (!headers.includes('In Collection')) {
+            console.warn('Kolumna "In Collection" nie została znaleziona w nagłówkach CSV.');
+          }
+
+          const allRows = lines.slice(1).map(line => line.split(','));
+          if (allRows.length < 1) {
             throw new Error('CSV: brak danych lub za mało wierszy.');
           }
 
-          const bodyRows = allRows.slice(1); // pomijamy pierwszy wiersz (headery)
-
-          // Obliczanie ilości wierszy
-          const totalRows = bodyRows.length;
-          const rowsWithYear2023 = bodyRows.filter(row => row[1] && row[1].trim() === '2023').length;
-          const rowsWithYear2024 = bodyRows.filter(row => row[1] && row[1].trim() === '2024').length;
-          const rowsWithYear2025 = bodyRows.filter(row => row[1] && row[1].trim() === '2025').length;
-          const rowsWithYearPremium = bodyRows.filter(row => row[1] && row[1].trim() === 'Premium').length;
-          const rowsWithInNie = bodyRows.filter(row => row[5] && row[5].trim().toLowerCase() === 'nie').length;
-          const rowsWithInTak = bodyRows.filter(row => row[5] && row[5].trim().toLowerCase() === 'tak').length;
-
-          console.log("Łączna liczba wierszy w CSV:", totalRows);
-          console.log("Liczba wierszy gdzie Year == 2023:", rowsWithYear2023);
-          console.log("Liczba wierszy gdzie Year == 2024:", rowsWithYear2024);
-          console.log("Liczba wierszy gdzie Year == 2025:", rowsWithYear2025);
-          console.log("Liczba wierszy gdzie Year == Premium:", rowsWithYearPremium);
-          console.log("Liczba wierszy gdzie In Collection == Nie:", rowsWithInNie);
-          console.log("Liczba wierszy gdzie In Collection == Tak:", rowsWithInTak);
+          const bodyRows = allRows;
 
           // Filtrowanie danych: Year == 2024, In Collection == Nie
-          const rowsAfterFirstFilter = bodyRows.filter(row => 
-            row[1] && row[1].trim() === '2024' && 
-            row[5] && row[5].trim().toLowerCase() === 'nie'
-          ).length;
-
-          console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie:", rowsAfterFirstFilter);
-
-          // Filtrowanie danych: Year == 2024, In Collection == Nie, Series != "Red Edition"
           const filteredRows = bodyRows.filter(row => {
             const yearVal = (row[1] || '').trim(); // Year
-            const inVal = (row[5] || '').trim().toLowerCase(); // 'In Collection' jest kolumną 5
-            const seriesVal = (row[0] || '').trim();
+            const inVal = (row[IN_COLLECTION_INDEX] || '').trim().toLowerCase(); // 'In Collection'
 
-            return yearVal === '2024' && inVal === 'nie' && seriesVal.toLowerCase() !== 'red edition';
+            return yearVal === '2024' && inVal === 'nie';
           });
 
-          console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie i Series!=Red Edition:", filteredRows.length);
+          // Filtrowanie danych: Year == 2024, In Collection == Nie i Series != Red Edition
+          const furtherFilteredRows = filteredRows.filter(row => {
+            const seriesVal = (row[0] || '').trim();
+            return seriesVal.toLowerCase() !== 'red edition';
+          });
 
-          buildTable(filteredRows);
+          /************************************************************
+           * DODANIE FILTRACJI NA PODSTAWIE "In Collection"
+           ************************************************************/
+          // Filtrowanie bez "Exclusive"
+          const withoutExclusive = furtherFilteredRows.filter(row => {
+            const inCollection = row[IN_COLLECTION_INDEX] ? row[IN_COLLECTION_INDEX].trim() : '';
+            return !inCollection.includes('Exclusive');
+          });
+
+          // Filtrowanie bez "Super Treasure Hunt"
+          const withoutSuperTreasureHunt = furtherFilteredRows.filter(row => {
+            const inCollection = row[IN_COLLECTION_INDEX] ? row[IN_COLLECTION_INDEX].trim() : '';
+            return !inCollection.includes('Super Treasure Hunt');
+          });
+
+          // Filtrowanie bez "Exclusive" i "Super Treasure Hunt"
+          const withoutBoth = furtherFilteredRows.filter(row => {
+            const inCollection = row[IN_COLLECTION_INDEX] ? row[IN_COLLECTION_INDEX].trim() : '';
+            return !inCollection.includes('Exclusive') && !inCollection.includes('Super Treasure Hunt');
+          });
+
+          // Ostateczne filtrowanie do wyświetlenia w tabeli
+          const finalFilteredRows = withoutBoth;
+
+          buildTable(finalFilteredRows);
         })
         .catch(err => {
           console.error('Błąd podczas wczytywania CSV:', err);
-          document.getElementById('table-container').innerHTML =
-            '<p>Wystąpił błąd podczas wczytywania danych.</p>';
+          // Poprawiono przypisanie innerHTML na jednej linii, aby uniknąć błędu składniowego
+          document.getElementById('table-container').innerHTML = '<p>Wystąpił błąd podczas wczytywania danych.</p>';
         });
     }
 
@@ -346,7 +361,7 @@
         });
 
         // Odczyt toyId
-        const toyId = (row[2] || '').trim(); // Toy # jest w kolumnie 2
+        const toyId = (row[3] || '').trim(); // Toy # jest w kolumnie 3
 
         // Kolumna Photo
         const tdPhoto = document.createElement('td');
@@ -449,7 +464,7 @@
         if (checkbox.checked) {
           selectedCount++;
 
-          const toyId = row.cells[2].textContent.trim(); // Toy #
+          const toyId = row.cells[2].textContent.trim(); // Toy # jest w kolumnie 2
           selectedModels.push(`${toyId}`);
         }
       });
