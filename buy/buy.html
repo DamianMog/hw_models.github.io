@@ -342,14 +342,16 @@
             const notes = row[NOTES_INDEX] ? row[NOTES_INDEX].trim() : '';
             return !notes.includes('Exclusive');
           });
-          console.log(`Ilość wierszy po filtrze bez "Exclusive" w Notes: ${withoutExclusiveInNotes.length}`);
+          // Usunięto poniższą linię zgodnie z Twoją prośbą
+          // console.log(`Ilość wierszy po filtrze bez "Exclusive" w Notes: ${withoutExclusiveInNotes.length}`);
 
           // Filtrowanie bez "Super Treasure Hunt" w Notes
           const withoutSuperTreasureHuntInNotes = furtherFilteredRows.filter(row => {
             const notes = row[NOTES_INDEX] ? row[NOTES_INDEX].trim() : '';
             return !notes.includes('Super Treasure Hunt');
           });
-          console.log(`Ilość wierszy po filtrze bez "Super Treasure Hunt" w Notes: ${withoutSuperTreasureHuntInNotes.length}`);
+          // Usunięto poniższą linię zgodnie z Twoją prośbą
+          // console.log(`Ilość wierszy po filtrze bez "Super Treasure Hunt" w Notes: ${withoutSuperTreasureHuntInNotes.length}`);
 
           // Filtrowanie bez "Exclusive" i "Super Treasure Hunt" w Notes
           const withoutBothInNotes = furtherFilteredRows.filter(row => {
@@ -369,7 +371,7 @@
           console.log(`- Notes: ${headers[NOTES_INDEX]} (indeks ${NOTES_INDEX})`);
 
           buildTable(finalFilteredRows);
-        }) // <-- Poprawione zamknięcie bloku `.then()`
+        })
         .catch(err => {
           console.error('Błąd podczas wczytywania CSV:', err);
           // Poprawiono przypisanie innerHTML na jednej linii, aby uniknąć błędu składniowego
