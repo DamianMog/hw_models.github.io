@@ -167,7 +167,7 @@
   </div>
 
   <h1>Lista modeli, które chcę kupić</h1>
-  <h3>Jeżeli posiadasz na sprzedaż model z poniższej listy, możesz go zaznaczyć, a następnie skopiować podsumowanie które znajduje się pod tabelą. Prześlij takie podsumowanie do mnie w celu sfinalizowania zakupu.</h3>
+  <h3>Jeżeli posiadasz na sprzedaż model z poniższej listy, możesz go zaznaczyć, a następnie skopiować podsumowanie które znajduję się pod tabelą. Prześlij takie podsumowanie do mnie w celu sfinalizowania zakupy.</h3>
   
   <!-- Kontener na tabelę z danymi -->
   <div id="table-container">
@@ -205,35 +205,13 @@
       'Posiadam'
     ];
 
-    // Kolumny z CSV do wypełnienia (Series, Year, Toy #, Casting, Set #, Photo)
-    // Zakładam, że Series = 0, Year =1, Toy #=3, Casting=5, Set #=7, Photo=8
-    const COLUMNS_FROM_CSV = [0, 1, 3, 5, 7, 8];
+    // Kolumny z CSV do wypełnienia (Series, Year, Toy #, Casting, Set #)
+    // Zakładam, że Series = 0, Year =1, Toy #=3, Casting=4, Set #=5
+    // Dostosuj indeksy zgodnie z rzeczywistą strukturą CSV
+    const COLUMNS_FROM_CSV = [0, 1, 3, 4, 5];
 
     // Mapa toyId -> { photo }
     const imagesMap = {};
-
-    // Tablica fraz do wykluczenia w kolumnie "Notes"
-    // (jeśli nie potrzebujesz filtrowania na podstawie "Notes", możesz usunąć tę część)
-    /*
-    const excludeNotes = [
-      'super treasure hunt',
-      'kroger exclusive',
-      'target exclusive',
-      'walmart exclusive',
-      'dollar general exclusive',
-      '"from the vault" exclusive'
-    ];
-
-    // Inicjalizacja obiektu do liczenia wystąpień każdej frazy
-    const counts = {
-      'super treasure hunt': 0,
-      'kroger exclusive': 0,
-      'target exclusive': 0,
-      'walmart exclusive': 0,
-      'dollar general exclusive': 0,
-      '"from the vault" exclusive': 0
-    };
-    */
 
     // Funkcja do parsowania integera z fallbackiem
     function parseIntOr(val, def = 1) {
@@ -258,17 +236,21 @@
         return resp.json();
       })
       .then(files => {
-        // Przetwarzanie plików
+        console.log("Pobrane pliki z GitHuba (folder buy/images):", files);
+
         files.forEach(file => {
-          if (file.type === "file" && file.name.match(/\.(jpg|jpeg|png|gif|webp|jfif)$/i)) {
-            const nameNoExt = file.name.replace(/\.(jpg|jpeg|png|gif|webp|jfif)$/i, "");
-            const toyId = nameNoExt.replace(/\./g, '').trim();
+          if (file.type === "file" && file.name.match(/\.(jpg|jpeg|png|gif|webp|jfif)$/i)) { // Dodano webp i jfif
+            const nameNoExt = file.name.replace(/\.(jpg|jpeg|png|gif|webp|jfif)$/i, ""); // Dodano webp i jfif
+            const toyId = nameNoExt.replace(/\./g, '').trim(); // usunięcie kropek i trim
+            console.log("Plik oryginalny:", file.name, " -> toyId:", toyId);
+
             if (toyId) {
               imagesMap[toyId] = file.download_url;
             }
           }
         });
 
+        console.log("imagesMap =", imagesMap);
         fetchAndBuildTable();
       })
       .catch(err => {
@@ -298,53 +280,27 @@
 
           const bodyRows = allRows.slice(1); // pomijamy pierwszy wiersz (headery)
 
-          // Logowanie liczby kolumn w każdym wierszu
-          bodyRows.forEach((row, index) => {
-            console.log(`Wiersz ${index + 2}: liczba kolumn = ${row.length}`);
-          });
-
           // Logowanie informacji do konsoli
           const totalRows = bodyRows.length;
           console.log("Łączna liczba wierszy w CSV:", totalRows);
 
-          // Liczba wierszy dla poszczególnych wartości Year
-          const rowsWithYear2023 = bodyRows.filter(row => row[1] && row[1].trim() === '2023').length;
-          console.log("Liczba wierszy gdzie Year == 2023:", rowsWithYear2023);
-
           const rowsWithYear2024 = bodyRows.filter(row => row[1] && row[1].trim() === '2024').length;
           console.log("Liczba wierszy gdzie Year == 2024:", rowsWithYear2024);
 
-          const rowsWithYear2025 = bodyRows.filter(row => row[1] && row[1].trim() === '2025').length;
-          console.log("Liczba wierszy gdzie Year == 2025:", rowsWithYear2025);
-
-          const rowsWithYearPremium = bodyRows.filter(row => row[1] && row[1].trim().toLowerCase() === 'premium').length;
-          console.log("Liczba wierszy gdzie Year == Premium:", rowsWithYearPremium);
-
-          // Liczba wierszy dla In Collection == Nie i == Tak
           const rowsWithInNie = bodyRows.filter(row => row[2] && row[2].trim().toLowerCase() === 'nie').length;
           console.log("Liczba wierszy gdzie In Collection == Nie:", rowsWithInNie);
 
-          const rowsWithInTak = bodyRows.filter(row => row[2] && row[2].trim().toLowerCase() === 'tak').length;
-          console.log("Liczba wierszy gdzie In Collection == Tak:", rowsWithInTak);
+          // Filtrowanie danych: Year == 2024, In Collection == Nie, Series != "Red Edition"
+          const filteredRows = bodyRows.filter(row => {
+            const yearVal = (row[1] || '').trim(); // Year
+            const inVal = (row[2] || '').trim().toLowerCase(); // 'In Collection' jest kolumną 2
+            const seriesVal = (row[0] || '').trim();
 
-          // Filtrowanie danych: Year == 2024, In Collection == Nie
-          const filteredRowsStep1 = bodyRows.filter(row => {
-            const yearVal = (row[1] || '').trim();
-            const inVal = (row[2] || '').trim().toLowerCase();
-            return yearVal === '2024' && inVal === 'nie';
+            return yearVal === '2024' && inVal === 'nie' && seriesVal.toLowerCase() !== 'red edition';
           });
 
-          console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie:", filteredRowsStep1.length);
-
-          // Filtrowanie dodatkowe: Series != "Red Edition"
-          const filteredRowsFinal = filteredRowsStep1.filter(row => {
-            const seriesVal = (row[0] || '').trim().toLowerCase();
-            return seriesVal !== 'red edition';
-          });
-
-          console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie i Series!=Red Edition:", filteredRowsFinal.length);
-
-          buildTable(filteredRowsFinal);
+          console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie i Series!=Red Edition:", filteredRows.length);
+          buildTable(filteredRows);
         })
         .catch(err => {
           console.error('Błąd podczas wczytywania CSV:', err);
@@ -374,7 +330,7 @@
       filteredRows.forEach(row => {
         const tr = document.createElement('tr');
 
-        // Wypełnienie kolumn: Series, Year, Toy #, Casting, Set #, Photo
+        // Wypełnienie kolumn: Series, Year, Toy #, Casting, Set #
         COLUMNS_FROM_CSV.forEach((colIndex) => {
           const td = document.createElement('td');
           td.textContent = (row[colIndex] || '').trim();
@@ -383,7 +339,7 @@
 
         // Odczyt toyId
         const toyId = (row[3] || '').trim(); // Toy # jest w kolumnie 3
-        // console.log("toyId z CSV =", toyId); // Usunięte logi debugowania
+        console.log("toyId z CSV =", toyId);
 
         // Kolumna Photo
         const tdPhoto = document.createElement('td');
