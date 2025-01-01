@@ -377,7 +377,7 @@
           console.log(`- Notes: ${headers[NOTES_INDEX]} (indeks ${NOTES_INDEX})`);
 
           buildTable(finalFilteredRows);
-        })
+        });
         .catch(err => {
           console.error('Błąd podczas wczytywania CSV:', err);
           // Poprawiono przypisanie innerHTML na jednej linii, aby uniknąć błędu składniowego
@@ -493,4 +493,59 @@
      * OBSŁUGA PODSUMOWANIA I KOPIOWANIA
      ************************************************************/
     function updateSummary() {
-      const table = doc
+      const table = document.querySelector('#table-container table');
+      if (!table) return;
+
+      const rows = table.querySelectorAll('tbody tr');
+      let selectedCount = 0;
+
+      const selectedModels = [];
+
+      rows.forEach(row => {
+        // Indeksy w finalnej tabeli:
+        // 0: Series
+        // 1: Year
+        // 2: Toy #
+        // 3: Casting
+        // 4: Set #
+        // 5: Photo
+        // 6: Posiadam (checkbox)
+        const checkboxCell = row.cells[6];
+        const checkbox = checkboxCell.querySelector('input[type="checkbox"]');
+        if (!checkbox) return;
+
+        if (checkbox.checked) {
+          selectedCount++;
+
+          const toyId = row.cells[2].textContent.trim(); // Toy # jest w kolumnie 2
+          selectedModels.push(`${toyId}`);
+        }
+      });
+
+      const summaryEl = document.getElementById('summary');
+      const copyBtn = document.getElementById('copyBtn');
+
+      if (selectedCount === 0) {
+        summaryEl.textContent =
+          'Zaznacz wiersze z modelami, wybierz ilość i prześlij wiadomość do sprzedawcy.';
+        copyBtn.style.display = 'none';
+        return;
+      }
+
+      copyBtn.style.display = 'inline-block';
+
+      const joinedModels = selectedModels.join(', ');
+      summaryEl.textContent =
+        `Wybrano ${selectedCount} model(i).\n` +
+        `Szczegóły: ${joinedModels}.`;
+    }
+
+    function copySummary() {
+      const summaryText = document.getElementById('summary').textContent;
+      navigator.clipboard.writeText(summaryText).then(() => {
+        alert('Skopiowano treść podsumowania!');
+      });
+    }
+  </script>
+</body>
+</html>
