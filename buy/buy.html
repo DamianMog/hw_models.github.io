@@ -365,7 +365,7 @@
           console.log(`- Series: ${headers[0]} (indeks 0)`);
 
           buildTable(finalFilteredRows);
-        }
+        })
         .catch(err => {
           console.error('Błąd podczas wczytywania CSV:', err);
           // Poprawiono przypisanie innerHTML na jednej linii, aby uniknąć błędu składniowego
