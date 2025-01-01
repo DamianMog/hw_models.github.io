@@ -167,7 +167,7 @@
   </div>
 
   <h1>Lista modeli, które chcę kupić</h1>
-  <h3>Jeżeli posiadasz na sprzedaż model z poniższej listy, możesz go zaznaczyć, a następnie skopiować podsumowanie które znajduję się pod tabelą. Prześlij takie podsumowanie do mnie w celu sfinalizowania zakupy.</h3>
+  <h3>Jeżeli posiadasz na sprzedaż model z poniższej listy, możesz go zaznaczyć, a następnie skopiować podsumowanie które znajduję się pod tabelą. Prześlij takie podsumowanie do mnie w celu sfinalizowania zakupu.</h3>
   
   <!-- Kontener na tabelę z danymi -->
   <div id="table-container">
@@ -209,6 +209,9 @@
     // Zakładam, że Series = 0, Year =1, Toy #=3, Casting=4, Set #=5
     // Dostosuj indeksy zgodnie z rzeczywistą strukturą CSV
     const COLUMNS_FROM_CSV = [0, 1, 3, 4, 5];
+
+    // Indeks kolumny NOTEST (zero-based index)
+    const NOTEST_INDEX = 7; // Dostosuj, jeśli NOTEST jest w innej kolumnie
 
     // Mapa toyId -> { photo }
     const imagesMap = {};
@@ -318,7 +321,34 @@
 
           console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie i Series!=Red Edition:", furtherFilteredRows.length);
 
-          buildTable(furtherFilteredRows);
+          /************************************************************
+           * DODANIE FILTRACJI NA PODSTAWIE NOTEST
+           ************************************************************/
+          // Filtrowanie bez "Exclusive"
+          const withoutExclusive = furtherFilteredRows.filter(row => {
+            const notest = row[NOTEST_INDEX] ? row[NOTEST_INDEX].trim() : '';
+            return !notest.includes('Exclusive');
+          });
+          console.log(`Ilość wierszy po filtrze Year=2024, In Collection=Nie, Series!=Red Edition: ${furtherFilteredRows.length}, bez "Exclusive": ${withoutExclusive.length}`);
+
+          // Filtrowanie bez "Super Treasure Hunt"
+          const withoutSuperTreasureHunt = furtherFilteredRows.filter(row => {
+            const notest = row[NOTEST_INDEX] ? row[NOTEST_INDEX].trim() : '';
+            return !notest.includes('Super Treasure Hunt');
+          });
+          console.log(`Ilość wierszy po filtrze Year=2024, In Collection=Nie, Series!=Red Edition: ${furtherFilteredRows.length}, bez "Super Treasure Hunt": ${withoutSuperTreasureHunt.length}`);
+
+          // Filtrowanie bez "Exclusive" i "Super Treasure Hunt"
+          const withoutBoth = furtherFilteredRows.filter(row => {
+            const notest = row[NOTEST_INDEX] ? row[NOTEST_INDEX].trim() : '';
+            return !notest.includes('Exclusive') && !notest.includes('Super Treasure Hunt');
+          });
+          console.log(`Ilość wierszy po filtrze Year=2024, In Collection=Nie, Series!=Red Edition: ${furtherFilteredRows.length}, bez "Super Treasure Hunt" & "Exclusive": ${withoutBoth.length}`);
+
+          // Ostateczne filtrowanie do wyświetlenia w tabeli
+          const finalFilteredRows = withoutBoth;
+
+          buildTable(finalFilteredRows);
         })
         .catch(err => {
           console.error('Błąd podczas wczytywania CSV:', err);
