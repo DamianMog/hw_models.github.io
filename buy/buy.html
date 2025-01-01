@@ -213,6 +213,9 @@
     // Indeks kolumny "In Collection" (zero-based index)
     const IN_COLLECTION_INDEX = 2; // Zmieniono z 7 na 2
 
+    // Indeks kolumny "Notes" (zero-based index)
+    const NOTES_INDEX = 6; // Dodany indeks dla "Notes"
+
     // Mapa toyId -> { photo }
     const imagesMap = {};
 
@@ -316,7 +319,7 @@
           // Filtrowanie danych: Year == 2024, In Collection == Nie
           const filteredRows = bodyRows.filter(row => {
             const yearVal = (row[1] || '').trim(); // Year
-            const inVal = (row[IN_COLLECTION_INDEX] || '').trim().toLowerCase(); // 'In Collection' jest kolumną IN_COLLECTION_INDEX
+            const inVal = (row[IN_COLLECTION_INDEX] || '').trim().toLowerCase(); // 'In Collection'
 
             return yearVal === '2024' && inVal === 'nie';
           });
@@ -332,40 +335,41 @@
           console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie i Series!=Red Edition:", furtherFilteredRows.length);
 
           /************************************************************
-           * DODANIE FILTRACJI NA PODSTAWIE "In Collection"
+           * DODANIE FILTRACJI NA PODSTAWIE "Notes"
            ************************************************************/
-          // Filtrowanie bez "Exclusive"
-          const withoutExclusive = furtherFilteredRows.filter(row => {
-            const inCollection = row[IN_COLLECTION_INDEX] ? row[IN_COLLECTION_INDEX].trim() : '';
-            return !inCollection.includes('Exclusive');
+          // Filtrowanie bez "Exclusive" w Notes
+          const withoutExclusiveInNotes = furtherFilteredRows.filter(row => {
+            const notes = row[NOTES_INDEX] ? row[NOTES_INDEX].trim() : '';
+            return !notes.includes('Exclusive');
           });
-          console.log(`Ilość wierszy po filtrze Year=2024, In Collection=Nie, Series!=Red Edition, bez "Exclusive": ${withoutExclusive.length}`);
+          console.log(`Ilość wierszy po filtrze bez "Exclusive" w Notes: ${withoutExclusiveInNotes.length}`);
 
-          // Filtrowanie bez "Super Treasure Hunt"
-          const withoutSuperTreasureHunt = furtherFilteredRows.filter(row => {
-            const inCollection = row[IN_COLLECTION_INDEX] ? row[IN_COLLECTION_INDEX].trim() : '';
-            return !inCollection.includes('Super Treasure Hunt');
+          // Filtrowanie bez "Super Treasure Hunt" w Notes
+          const withoutSuperTreasureHuntInNotes = furtherFilteredRows.filter(row => {
+            const notes = row[NOTES_INDEX] ? row[NOTES_INDEX].trim() : '';
+            return !notes.includes('Super Treasure Hunt');
           });
-          console.log(`Ilość wierszy po filtrze Year=2024, In Collection=Nie, Series!=Red Edition, bez "Super Treasure Hunt": ${withoutSuperTreasureHunt.length}`);
+          console.log(`Ilość wierszy po filtrze bez "Super Treasure Hunt" w Notes: ${withoutSuperTreasureHuntInNotes.length}`);
 
-          // Filtrowanie bez "Exclusive" i "Super Treasure Hunt"
-          const withoutBoth = furtherFilteredRows.filter(row => {
-            const inCollection = row[IN_COLLECTION_INDEX] ? row[IN_COLLECTION_INDEX].trim() : '';
-            return !inCollection.includes('Exclusive') && !inCollection.includes('Super Treasure Hunt');
+          // Filtrowanie bez "Exclusive" i "Super Treasure Hunt" w Notes
+          const withoutBothInNotes = furtherFilteredRows.filter(row => {
+            const notes = row[NOTES_INDEX] ? row[NOTES_INDEX].trim() : '';
+            return !notes.includes('Exclusive') && !notes.includes('Super Treasure Hunt');
           });
-          console.log(`Ilość wierszy po filtrze Year=2024, In Collection=Nie, Series!=Red Edition, bez "Super Treasure Hunt" & "Exclusive": ${withoutBoth.length}`);
+          console.log(`Ilość wierszy po filtrze bez "Super Treasure Hunt" & "Exclusive" w Notes: ${withoutBothInNotes.length}`);
 
           // Ostateczne filtrowanie do wyświetlenia w tabeli
-          const finalFilteredRows = withoutBoth;
+          const finalFilteredRows = withoutBothInNotes;
 
           // Informacja o użytych nagłówkach do poszczególnych czynności
           console.log("Użyte nagłówki do filtrowania:");
           console.log(`- Year: ${headers[1]} (indeks 1)`);
           console.log(`- In Collection: ${headers[IN_COLLECTION_INDEX]} (indeks ${IN_COLLECTION_INDEX})`);
           console.log(`- Series: ${headers[0]} (indeks 0)`);
+          console.log(`- Notes: ${headers[NOTES_INDEX]} (indeks ${NOTES_INDEX})`);
 
           buildTable(finalFilteredRows);
-        })
+        }) // <-- Poprawione zamknięcie bloku `.then()`
         .catch(err => {
           console.error('Błąd podczas wczytywania CSV:', err);
           // Poprawiono przypisanie innerHTML na jednej linii, aby uniknąć błędu składniowego
