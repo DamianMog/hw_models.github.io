@@ -97,8 +97,9 @@
     #summary-container {
       margin-top: 20px;
       display: flex;
-      align-items: center;
-      gap: 15px;
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 10px;
     }
 
     #summary {
@@ -118,6 +119,7 @@
       color: white;
       cursor: pointer;
       transition: background-color 0.2s ease-in-out;
+      align-self: flex-start;
     }
     #copyBtn:hover {
       background-color: #0056b3;
@@ -153,6 +155,19 @@
       font-size: 32px;
       cursor: pointer;
       user-select: none;
+    }
+
+    /* Styl dla przekreślonej ceny */
+    .original-price {
+      color: red;
+      text-decoration: line-through;
+    }
+
+    /* Styl dla ceny po rabacie */
+    .discounted-price {
+      color: green;
+      font-weight: bold;
+      margin-left: 10px;
     }
   </style>
 </head>
@@ -467,7 +482,7 @@
           selectedCount++;
           row.classList.add('selected');
 
-          const toyText = row.cells[2].textContent; // Toy #
+          const toyId = row.cells[2].textContent; // Toy #
           const priceValue = parseFloat(row.cells[6].textContent) || 0;
           const qtyCell = row.cells[11];
           const qtyInput = qtyCell.querySelector('input[type="number"]');
@@ -477,7 +492,7 @@
           totalCost += cost;
           totalModelsSelected += qty;
 
-          selectedModels.push(`${toyText} (x${qty}, ${cost}zł)`);
+          selectedModels.push(`${toyId} (${qty}szt × ${priceValue.toFixed(2)}zł = ${cost.toFixed(2)}zł)`);
         } else {
           row.classList.remove('selected');
         }
@@ -496,17 +511,51 @@
       copyBtn.style.display = 'inline-block';
 
       const joinedModels = selectedModels.join(', ');
-      summaryEl.textContent =
-        `Wybrano ${totalModelsSelected} model(i).\n` +
-        `Szczegóły: ${joinedModels}.\n` +
-        `Razem do zapłaty: ${totalCost.toFixed(2)} zł.`;
+      
+      // Określenie procentu rabatu na podstawie totalModelsSelected
+      let discountPercentage = 0;
+      if (totalModelsSelected >= 30) {
+        discountPercentage = 15;
+      } else if (totalModelsSelected >= 25) {
+        discountPercentage = 12.5;
+      } else if (totalModelsSelected >= 20) {
+        discountPercentage = 10;
+      } else if (totalModelsSelected >= 15) {
+        discountPercentage = 7.5;
+      } else if (totalModelsSelected >= 10) {
+        discountPercentage = 5;
+      } else if (totalModelsSelected >= 5) {
+        discountPercentage = 2.5;
+      }
+
+      // Obliczenie rabatu
+      let discountAmount = 0;
+      let finalTotal = totalCost;
+      if (discountPercentage > 0) {
+        discountAmount = totalCost * (discountPercentage / 100);
+        finalTotal = totalCost - discountAmount;
+      }
+
+      // Formatowanie podsumowania
+      let summaryText = `Wybrano ${totalModelsSelected} model(i).\nSzczegóły: ${joinedModels}.\nRazem do zapłaty: ${totalCost.toFixed(2)} zł.`;
+
+      if (discountPercentage > 0) {
+        summaryText = `Wybrano ${totalModelsSelected} model(i).\nSzczegóły: ${joinedModels}.\nRazem do zapłaty: <span class="original-price">${totalCost.toFixed(2)} zł</span> <span class="discounted-price">${finalTotal.toFixed(2)} zł</span> (-${discountPercentage}%).`;
+      }
+
+      summaryEl.innerHTML = summaryText;
     }
 
     function copySummary() {
-      const summaryText = document.getElementById('summary').textContent;
-      navigator.clipboard.writeText(summaryText).then(() => {
-        alert('Skopiowano treść podsumowania!');
-      });
+      const summaryTextElement = document.getElementById('summary');
+      // Tworzenie tymczasowego elementu do skopiowania tekstu bez HTML
+      const tempElement = document.createElement('textarea');
+      tempElement.value = summaryTextElement.innerText;
+      document.body.appendChild(tempElement);
+      tempElement.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempElement);
+      alert('Skopiowano treść podsumowania!');
     }
   </script>
 </body>
