@@ -413,8 +413,24 @@
         const sztValue = parseIntOr(row[12], 1);
         inputNumber.max = sztValue.toString();
         inputNumber.value = '1';
+        inputNumber.addEventListener('input', () => {
+          // Pobranie aktualnej wartości i maksymalnej wartości
+          let currentValue = parseInt(inputNumber.value, 10);
+          const maxValue = parseInt(inputNumber.max, 10);
+
+          if (isNaN(currentValue) || currentValue < 1) {
+            inputNumber.value = '1';
+            currentValue = 1;
+          } else if (currentValue > maxValue) {
+            inputNumber.value = maxValue;
+            currentValue = maxValue;
+          }
+
+          updateRowTotal(tr, cenaSzt);
+          updateSummary();
+        });
         inputNumber.addEventListener('change', () => {
-          updateRowTotal(tr, cenaSzt); // Dodany trigger aktualizacji Łącznej ceny
+          updateRowTotal(tr, cenaSzt);
           updateSummary();
         });
         tdQty.appendChild(inputNumber);
