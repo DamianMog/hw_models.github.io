@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Lista modeli, które chcę kupić</title>
   
+  <!-- Dodanie favicon -->
+  <link rel="icon" href="images/icon.ico" type="image/x-icon" />
+  
   <style>
     /* Podstawowe style/reset */
     body {
@@ -167,7 +170,7 @@
   </div>
 
   <h1>Lista modeli, które chcę kupić</h1>
-  <h3>Jeżeli posiadasz na sprzedaż model z poniższej listy, możesz go zaznaczyć, a następnie skopiować podsumowanie które znajduje się pod tabelą. Prześlij takie podsumowanie do mnie w celu sfinalizowania zakupu.</h3>
+  <h3>Jeżeli posiadasz na sprzedaż model z poniższej listy, możesz go zaznaczyć, a następnie skopiować podsumowanie które znajduje się pod tabelą. Prześlij takie podsumowanie do mnie w celu sfinalizowania zakupu. Interesują mnie tylko modele w idealnym stanie, na krótkich kartach (nie STH). W grę wchodzi wymiana za modele które posiadam na sprzedaż <a href="https://damianmog.github.io/hw_models.github.io/sell/sell.html" target="_blank">tutaj</a>.</h3>
   
   <!-- Kontener na tabelę z danymi -->
   <div id="table-container">
@@ -201,7 +204,7 @@
       'Toy #',
       'Casting',
       'Set #',
-      'Photo',
+      'Zdj.', // Zmieniono z "Photo" na "Zdj."
       'Posiadam'
     ];
 
@@ -410,7 +413,7 @@
         // Odczyt toyId
         const toyId = (row[3] || '').trim(); // Toy # jest w kolumnie 3
 
-        // Kolumna Photo
+        // Kolumna Zdj. (wcześniej Photo)
         const tdPhoto = document.createElement('td');
         tdPhoto.innerHTML = '';
         if (toyId && imagesMap[toyId]) {
@@ -502,7 +505,7 @@
         // 2: Toy #
         // 3: Casting
         // 4: Set #
-        // 5: Photo
+        // 5: Zdj.
         // 6: Posiadam (checkbox)
         const checkboxCell = row.cells[6];
         const checkbox = checkboxCell.querySelector('input[type="checkbox"]');
