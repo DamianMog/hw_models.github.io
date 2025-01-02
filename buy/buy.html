@@ -349,23 +349,24 @@
           // Usunięto poniższą linię zgodnie z Twoją prośbą
           // console.log(`Ilość wierszy po filtrze bez "Exclusive" w Notes: ${withoutExclusiveInNotes.length}`);
 
-          // Filtrowanie bez "Super Treasure Hunt" w Notes
-          const withoutSuperTreasureHuntInNotes = furtherFilteredRows.filter(row => {
-            const notes = row[NOTES_INDEX] ? row[NOTES_INDEX].trim() : '';
-            return !notes.includes('Super Treasure Hunt');
-          });
+          // Usunięto filtrowanie bez "Super Treasure Hunt" w Notes
+          // const withoutSuperTreasureHuntInNotes = furtherFilteredRows.filter(row => {
+          //   const notes = row[NOTES_INDEX] ? row[NOTES_INDEX].trim() : '';
+          //   return !notes.includes('Super Treasure Hunt');
+          // });
           // Usunięto poniższą linię zgodnie z Twoją prośbą
           // console.log(`Ilość wierszy po filtrze bez "Super Treasure Hunt" w Notes: ${withoutSuperTreasureHuntInNotes.length}`);
 
-          // Filtrowanie bez "Exclusive" i "Super Treasure Hunt" w Notes
-          const withoutBothInNotes = furtherFilteredRows.filter(row => {
-            const notes = row[NOTES_INDEX] ? row[NOTES_INDEX].trim() : '';
-            return !notes.includes('Exclusive') && !notes.includes('Super Treasure Hunt');
-          });
-          console.log(`Ilość wierszy po filtrze bez "Super Treasure Hunt" & "Exclusive" w Notes: ${withoutBothInNotes.length}`);
+          // Usunięto filtrowanie bez "Exclusive" i "Super Treasure Hunt" w Notes
+          // const withoutBothInNotes = furtherFilteredRows.filter(row => {
+          //   const notes = row[NOTES_INDEX] ? row[NOTES_INDEX].trim() : '';
+          //   return !notes.includes('Exclusive') && !notes.includes('Super Treasure Hunt');
+          // });
+          // Usunięto poniższą linię zgodnie z Twoją prośbą
+          // console.log(`Ilość wierszy po filtrze bez "Super Treasure Hunt" & "Exclusive" w Notes: ${withoutBothInNotes.length}`);
 
           // Ostateczne filtrowanie do wyświetlenia w tabeli
-          const finalFilteredRows = withoutBothInNotes;
+          const finalFilteredRows = withoutExclusiveInNotes;
 
           // Informacja o użytych nagłówkach do poszczególnych czynności
           console.log("Użyte nagłówki do filtrowania:");
@@ -375,7 +376,7 @@
           console.log(`- Notes: ${headers[NOTES_INDEX]} (indeks ${NOTES_INDEX})`);
 
           buildTable(finalFilteredRows);
-        })
+        }
         .catch(err => {
           console.error('Błąd podczas wczytywania CSV:', err);
           // Poprawiono przypisanie innerHTML na jednej linii, aby uniknąć błędu składniowego
