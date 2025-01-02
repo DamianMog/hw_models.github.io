@@ -73,7 +73,7 @@
       background-color: #f4f4f4;
     }
 
-    /* Wyróżnienie wiersza wybranego (jeśli chcesz podkreślać) */
+    /* Wyróżnienie wiersza wybranego */
     tr.selected {
       background-color: #caf0f8;
     }
@@ -351,8 +351,9 @@
           tr.appendChild(td);
         });
 
-        // Odczyt toyId
-        const toyId = (row[3] || '').trim(); // bo w CSV index 3 to "Col. #"
+        // Odczyt toyId z kolumny "Toy #" (table cell 2)
+        const toyId = tr.cells[2].textContent.trim(); // Toy #
+
         console.log("toyId z CSV =", toyId);
 
         // Kolumna 9 => Zdj.
@@ -390,7 +391,7 @@
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.addEventListener('change', () => {
-          updateRowTotal(tr, priceValue);
+          updateRowTotal(tr, cenaSzt);
           updateSummary();
         });
         tdSelect.appendChild(checkbox);
@@ -413,6 +414,9 @@
         tdTotal.classList.add('total-price');
         tdTotal.textContent = '';
         tr.appendChild(tdTotal);
+
+        // Odczyt ceny za sztukę z kolumny "Cena/Szt" (cell 6)
+        const cenaSzt = parseFloat(row[11]) || 0;
 
         tbody.appendChild(tr);
       });
@@ -505,9 +509,9 @@
         const checkbox = checkboxCell.querySelector('input[type="checkbox"]');
         if (!checkbox) return;
 
-        const qtyCell = row.cells[11];
-        const qtyInput = qtyCell.querySelector('input[type="number"]');
-        const liczba = parseInt(qtyInput.value, 10) || 1;
+        const liczbaCell = row.cells[11];
+        const liczbaInput = liczbaCell.querySelector('input[type="number"]');
+        const liczba = parseInt(liczbaInput.value, 10) || 1;
 
         const cenaSztCell = row.cells[6];
         const cenaSzt = parseFloat(cenaSztCell.textContent) || 0;
@@ -521,16 +525,8 @@
           totalModelsSelected += liczba;
 
           selectedModels.push(`${toyId}(${liczba}szt)`);
-
-          // Aktualizacja kolumny "Łączna cena"
-          const totalPriceCell = row.cells[12];
-          totalPriceCell.textContent = `${(cenaSzt * liczba).toFixed(2)}zł`;
         } else {
           row.classList.remove('selected');
-
-          // Czyszczenie kolumny "Łączna cena"
-          const totalPriceCell = row.cells[12];
-          totalPriceCell.textContent = '';
         }
       });
 
@@ -567,7 +563,7 @@
       // Obliczenie rabatu
       let discountAmount = 0;
       let finalTotal = totalCost;
-      if (discountPercentage > 0) {
+      if (discountPercentage > 0 && totalModelsSelected > 4) { // Rabat tylko dla >4 modeli
         discountAmount = totalCost * (discountPercentage / 100);
         finalTotal = totalCost - discountAmount;
       }
@@ -575,7 +571,7 @@
       // Formatowanie podsumowania
       let summaryText = `${odmianaLiczebnika(totalModelsSelected, "model", "modele", "modeli")}.\nSzczegóły: ${joinedModels}.\nRazem do zapłaty: ${totalCost.toFixed(2)} zł.`;
 
-      if (discountPercentage > 0) {
+      if (discountPercentage > 0 && totalModelsSelected > 4) {
         summaryText = `${odmianaLiczebnika(totalModelsSelected, "model", "modele", "modeli")}.\nSzczegóły: ${joinedModels}.\nRazem do zapłaty: <span class="original-price">${totalCost.toFixed(2)} zł</span> <span class="discounted-price">${finalTotal.toFixed(2)} zł</span> (-${discountPercentage}%).`;
       }
 
@@ -597,12 +593,12 @@
     /************************************************************
      * FUNKCJA DO AKTUALIZACJI ŁĄCZNEJ CENY W WIERSZU
      ************************************************************/
-    function updateRowTotal(row, priceValue) {
+    function updateRowTotal(row, cenaSzt) {
       const checkbox = row.cells[10].querySelector('input[type="checkbox"]');
       const liczba = parseInt(row.cells[11].querySelector('input[type="number"]').value, 10) || 1;
       const totalPriceCell = row.cells[12];
       if (checkbox.checked) {
-        const totalPrice = priceValue * liczba;
+        const totalPrice = cenaSzt * liczba;
         totalPriceCell.textContent = `${totalPrice.toFixed(2)}zł`;
       } else {
         totalPriceCell.textContent = '';
