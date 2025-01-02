@@ -405,7 +405,10 @@
         const sztValue = parseIntOr(row[12], 1);
         inputNumber.max = sztValue.toString();
         inputNumber.value = '1';
-        inputNumber.addEventListener('change', updateSummary);
+        inputNumber.addEventListener('change', () => {
+          updateRowTotal(tr, cenaSzt); // Dodany trigger aktualizacji Łącznej ceny
+          updateSummary();
+        });
         tdQty.appendChild(inputNumber);
         tr.appendChild(tdQty);
 
@@ -569,10 +572,10 @@
       }
 
       // Formatowanie podsumowania
-      let summaryText = `${odmianaLiczebnika(totalModelsSelected, "model", "modele", "modeli")}.\nSzczegóły: ${joinedModels}.\nRazem do zapłaty: ${totalCost.toFixed(2)} zł.`;
+      let summaryText = `Wybrano ${odmianaLiczebnika(totalModelsSelected, "model", "modele", "modeli")}.\nSzczegóły: ${joinedModels}.\nRazem do zapłaty: ${totalCost.toFixed(2)} zł.`;
 
       if (discountPercentage > 0 && totalModelsSelected > 4) {
-        summaryText = `${odmianaLiczebnika(totalModelsSelected, "model", "modele", "modeli")}.\nSzczegóły: ${joinedModels}.\nRazem do zapłaty: <span class="original-price">${totalCost.toFixed(2)} zł</span> <span class="discounted-price">${finalTotal.toFixed(2)} zł</span> (-${discountPercentage}%).`;
+        summaryText = `Wybrano ${odmianaLiczebnika(totalModelsSelected, "model", "modele", "modeli")}.\nSzczegóły: ${joinedModels}.\nRazem do zapłaty: <span class="original-price">${totalCost.toFixed(2)} zł</span> <span class="discounted-price">${finalTotal.toFixed(2)} zł</span> (-${discountPercentage}%).`;
       }
 
       summaryEl.innerHTML = summaryText;
