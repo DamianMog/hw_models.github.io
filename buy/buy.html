@@ -108,6 +108,7 @@
     #summary {
       font-size: 1em;
       max-width: 700px;
+      white-space: pre-wrap; /* Zachowuje formatowanie nowej linii */
     }
 
     /* Przycisk "Kopiuj" */
@@ -181,7 +182,7 @@
   <div id="summary-container">
     <button id="copyBtn" onclick="copySummary()">Kopiuj</button>
     <div id="summary">
-      Zaznacz wiersze z modelami, wybierz ilość i prześlij wiadomość do sprzedawcy.
+      Zaznacz wiersze z modelami i prześlij wiadomość do sprzedawcy.
     </div>
   </div>
 
@@ -487,6 +488,22 @@
     }
 
     /************************************************************
+     * ALGORYTM ODMIANY LICZEBNIKA
+     ************************************************************/
+    function odmianaLiczebnika(liczba, forma_singular, forma_plural_2_4, forma_plural_5) {
+      const ostatnia_cyfra = liczba % 10;
+      const ostatnie_dwie_cyfry = liczba % 100;
+
+      if (ostatnia_cyfra === 1 && ostatnie_dwie_cyfry !== 11) {
+        return `${liczba} ${forma_singular}`;
+      } else if ([2, 3, 4].includes(ostatnia_cyfra) && !(12 <= ostatnie_dwie_cyfry && ostatnie_dwie_cyfry <= 14)) {
+        return `${liczba} ${forma_plural_2_4}`;
+      } else {
+        return `${liczba} ${forma_plural_5}`;
+      }
+    }
+
+    /************************************************************
      * OBSŁUGA PODSUMOWANIA I KOPIOWANIA
      ************************************************************/
     function updateSummary() {
@@ -524,7 +541,7 @@
 
       if (selectedCount === 0) {
         summaryEl.textContent =
-          'Zaznacz wiersze z modelami, wybierz ilość i prześlij wiadomość do sprzedawcy.';
+          'Zaznacz wiersze z modelami i prześlij wiadomość do sprzedawcy.';
         copyBtn.style.display = 'none';
         return;
       }
@@ -532,8 +549,9 @@
       copyBtn.style.display = 'inline-block';
 
       const joinedModels = selectedModels.join(', ');
+      const odmiana = odmianaLiczebnika(selectedCount, "model", "modele", "modeli");
       summaryEl.textContent =
-        `Wybrano ${selectedCount} model(i).\n` +
+        `Wybrano ${odmiana}.\n` +
         `Szczegóły: ${joinedModels}.`;
     }
 
