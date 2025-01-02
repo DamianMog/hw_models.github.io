@@ -376,7 +376,7 @@
           console.log(`- Notes: ${headers[NOTES_INDEX]} (indeks ${NOTES_INDEX})`);
 
           buildTable(finalFilteredRows);
-        }
+        })
         .catch(err => {
           console.error('Błąd podczas wczytywania CSV:', err);
           // Poprawiono przypisanie innerHTML na jednej linii, aby uniknąć błędu składniowego
