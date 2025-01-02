@@ -84,7 +84,7 @@
       cursor: pointer;
     }
 
-    /* Styl inputa liczbowego (Ilość) */
+    /* Styl inputa liczbowego (Liczba) */
     input[type="number"] {
       width: 60px;
       text-align: center;
@@ -211,7 +211,7 @@
     // Kolumna Sell (index 10) musi być "Tak"
     const COLUMN_SELL = 10;
 
-    // Nazwy nagłówków (12 kolumn)
+    // Nazwy nagłówków (13 kolumn po zmianach)
     const HEADERS = [
       'Series',
       'Year',
@@ -219,16 +219,17 @@
       'Col. #',
       'Casting',
       'Set #',
-      'Price',
-      'szt',
-      'Photo 1',
-      'Photo 2',
+      'Cena/Szt',
+      'Szt.',
+      'Zdj.',
+      'Zdj2.',
       'Wybierz',
-      'Ilość'
+      'Liczba',
+      'Łączna cena'
     ];
 
     // Kolumny z CSV do wypełnienia (8 kolumn):
-    // [Series(0), Year(1), Toy #(3), Col.#(4), Casting(5), Set #(7), Price(11), szt(12)]
+    // [Series(0), Year(1), Toy #(3), Col.#(4), Casting(5), Set #(7), Cena/Szt(11), Szt.(12)]
     const COLUMNS_FROM_CSV = [0, 1, 3, 4, 5, 7, 11, 12];
 
     // Mapa toyId -> { photo1, photo2 }
@@ -351,10 +352,10 @@
         });
 
         // Odczyt toyId
-        const toyId = (row[3] || '').trim(); // bo w CSV index 3 to "Toy #"
+        const toyId = (row[3] || '').trim(); // bo w CSV index 3 to "Col. #"
         console.log("toyId z CSV =", toyId);
 
-        // Kolumna 8 => Photo1
+        // Kolumna 9 => Zdj.
         const tdPhoto1 = document.createElement('td');
         tdPhoto1.innerHTML = '';
         if (toyId && imagesMap[toyId]?.photo1) {
@@ -369,7 +370,7 @@
         }
         tr.appendChild(tdPhoto1);
 
-        // Kolumna 9 => Photo2
+        // Kolumna 10 => Zdj2.
         const tdPhoto2 = document.createElement('td');
         tdPhoto2.innerHTML = '';
         if (toyId && imagesMap[toyId]?.photo2) {
@@ -384,15 +385,18 @@
         }
         tr.appendChild(tdPhoto2);
 
-        // Kolumna 10 => Wybierz (checkbox)
+        // Kolumna 11 => Wybierz (checkbox)
         const tdSelect = document.createElement('td');
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
-        checkbox.addEventListener('change', updateSummary);
+        checkbox.addEventListener('change', () => {
+          updateRowTotal(tr, priceValue);
+          updateSummary();
+        });
         tdSelect.appendChild(checkbox);
         tr.appendChild(tdSelect);
 
-        // Kolumna 11 => Ilość (input number)
+        // Kolumna 12 => Liczba (input number)
         const tdQty = document.createElement('td');
         const inputNumber = document.createElement('input');
         inputNumber.type = 'number';
@@ -403,6 +407,12 @@
         inputNumber.addEventListener('change', updateSummary);
         tdQty.appendChild(inputNumber);
         tr.appendChild(tdQty);
+
+        // Kolumna 13 => Łączna cena
+        const tdTotal = document.createElement('td');
+        tdTotal.classList.add('total-price');
+        tdTotal.textContent = '';
+        tr.appendChild(tdTotal);
 
         tbody.appendChild(tr);
       });
@@ -447,6 +457,22 @@
     }
 
     /************************************************************
+     * ALGORYTM ODMIAŃIAJĄCY "MODELI"
+     ************************************************************/
+    function odmianaLiczebnika(liczba, singular, plural234, plural5) {
+      let ostatnia_cyfra = liczba % 10;
+      let ostatnie_dwie_cyfry = liczba % 100;
+
+      if (ostatnia_cyfra === 1 && ostatnie_dwie_cyfry !== 11) {
+        return `${liczba} ${singular}`;
+      } else if ([2, 3, 4].includes(ostatnia_cyfra) && !(12 <= ostatnie_dwie_cyfry && ostatnie_dwie_cyfry <=14)) {
+        return `${liczba} ${plural234}`;
+      } else {
+        return `${liczba} ${plural5}`;
+      }
+    }
+
+    /************************************************************
      * OBSŁUGA PODSUMOWANIA I KOPIOWANIA
      ************************************************************/
     function updateSummary() {
@@ -468,33 +494,43 @@
         //  3: Col. #
         //  4: Casting
         //  5: Set #
-        //  6: Price
-        //  7: szt
-        //  8: Photo1
-        //  9: Photo2
+        //  6: Cena/Szt
+        //  7: Szt.
+        //  8: Zdj.
+        //  9: Zdj2.
         // 10: Wybierz (checkbox)
-        // 11: Ilość (input)
+        // 11: Liczba (input)
+        // 12: Łączna cena
         const checkboxCell = row.cells[10];
         const checkbox = checkboxCell.querySelector('input[type="checkbox"]');
         if (!checkbox) return;
+
+        const qtyCell = row.cells[11];
+        const qtyInput = qtyCell.querySelector('input[type="number"]');
+        const liczba = parseInt(qtyInput.value, 10) || 1;
+
+        const cenaSztCell = row.cells[6];
+        const cenaSzt = parseFloat(cenaSztCell.textContent) || 0;
 
         if (checkbox.checked) {
           selectedCount++;
           row.classList.add('selected');
 
-          const toyId = row.cells[2].textContent; // Toy #
-          const priceValue = parseFloat(row.cells[6].textContent) || 0;
-          const qtyCell = row.cells[11];
-          const qtyInput = qtyCell.querySelector('input[type="number"]');
-          const qty = parseInt(qtyInput.value, 10) || 1;
+          const toyId = row.cells[2].textContent.trim(); // Toy #
+          totalCost += cenaSzt * liczba;
+          totalModelsSelected += liczba;
 
-          const cost = priceValue * qty;
-          totalCost += cost;
-          totalModelsSelected += qty;
+          selectedModels.push(`${toyId}(${liczba}szt)`);
 
-          selectedModels.push(`${toyId} (${qty}szt × ${priceValue.toFixed(2)}zł = ${cost.toFixed(2)}zł)`);
+          // Aktualizacja kolumny "Łączna cena"
+          const totalPriceCell = row.cells[12];
+          totalPriceCell.textContent = `${(cenaSzt * liczba).toFixed(2)}zł`;
         } else {
           row.classList.remove('selected');
+
+          // Czyszczenie kolumny "Łączna cena"
+          const totalPriceCell = row.cells[12];
+          totalPriceCell.textContent = '';
         }
       });
 
@@ -511,7 +547,7 @@
       copyBtn.style.display = 'inline-block';
 
       const joinedModels = selectedModels.join(', ');
-      
+
       // Określenie procentu rabatu na podstawie totalModelsSelected
       let discountPercentage = 0;
       if (totalModelsSelected >= 30) {
@@ -537,10 +573,10 @@
       }
 
       // Formatowanie podsumowania
-      let summaryText = `Wybrano ${totalModelsSelected} model(i).\nSzczegóły: ${joinedModels}.\nRazem do zapłaty: ${totalCost.toFixed(2)} zł.`;
+      let summaryText = `${odmianaLiczebnika(totalModelsSelected, "model", "modele", "modeli")}.\nSzczegóły: ${joinedModels}.\nRazem do zapłaty: ${totalCost.toFixed(2)} zł.`;
 
       if (discountPercentage > 0) {
-        summaryText = `Wybrano ${totalModelsSelected} model(i).\nSzczegóły: ${joinedModels}.\nRazem do zapłaty: <span class="original-price">${totalCost.toFixed(2)} zł</span> <span class="discounted-price">${finalTotal.toFixed(2)} zł</span> (-${discountPercentage}%).`;
+        summaryText = `${odmianaLiczebnika(totalModelsSelected, "model", "modele", "modeli")}.\nSzczegóły: ${joinedModels}.\nRazem do zapłaty: <span class="original-price">${totalCost.toFixed(2)} zł</span> <span class="discounted-price">${finalTotal.toFixed(2)} zł</span> (-${discountPercentage}%).`;
       }
 
       summaryEl.innerHTML = summaryText;
@@ -556,6 +592,21 @@
       document.execCommand('copy');
       document.body.removeChild(tempElement);
       alert('Skopiowano treść podsumowania!');
+    }
+
+    /************************************************************
+     * FUNKCJA DO AKTUALIZACJI ŁĄCZNEJ CENY W WIERSZU
+     ************************************************************/
+    function updateRowTotal(row, priceValue) {
+      const checkbox = row.cells[10].querySelector('input[type="checkbox"]');
+      const liczba = parseInt(row.cells[11].querySelector('input[type="number"]').value, 10) || 1;
+      const totalPriceCell = row.cells[12];
+      if (checkbox.checked) {
+        const totalPrice = priceValue * liczba;
+        totalPriceCell.textContent = `${totalPrice.toFixed(2)}zł`;
+      } else {
+        totalPriceCell.textContent = '';
+      }
     }
   </script>
 </body>
