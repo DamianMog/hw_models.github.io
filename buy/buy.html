@@ -226,6 +226,9 @@
     // Indeks kolumny "Buy" (zero-based index)
     const BUY_INDEX = 13;
 
+    // Ścieżka do domyślnego zdjęcia
+    const DEFAULT_IMAGE_PATH = '../images/nophoto.png';
+
     // Mapa toyId -> { photo }
     const imagesMap = {};
 
@@ -368,6 +371,16 @@
           // Kliknięcie w zdjęcie => fullscreen
           img.addEventListener('click', () => {
             showImagePopup(imagesMap[toyId]);
+          });
+          tdPhoto.appendChild(img);
+        } else {
+          const img = document.createElement('img');
+          img.classList.add('model-photo');
+          img.src = DEFAULT_IMAGE_PATH; // Ścieżka do domyślnego zdjęcia
+          img.alt = `Brak zdjęcia modelu ${toyId}`;
+          // Opcjonalnie, możesz dodać zdarzenie kliknięcia, aby pokazywać popup z domyślnym zdjęciem
+          img.addEventListener('click', () => {
+            showImagePopup(DEFAULT_IMAGE_PATH);
           });
           tdPhoto.appendChild(img);
         }
