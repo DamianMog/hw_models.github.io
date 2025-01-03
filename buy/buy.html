@@ -223,11 +223,8 @@
     // Dostosuj indeksy zgodnie z rzeczywistą strukturą CSV
     const COLUMNS_FROM_CSV = [0, 1, 3, 4, 5];
 
-    // Indeks kolumny "In Collection" (zero-based index)
-    const IN_COLLECTION_INDEX = 2; // Zmieniono z 7 na 2
-
-    // Indeks kolumny "Notes" (zero-based index)
-    const NOTES_INDEX = 6; // Dodany indeks dla "Notes"
+    // Indeks kolumny "Buy" (zero-based index)
+    const BUY_INDEX = 13;
 
     // Mapa toyId -> { photo }
     const imagesMap = {};
@@ -295,9 +292,9 @@
             console.log(`Indeks ${index}: ${header}`);
           });
 
-          // Sprawdzenie, czy nagłówek "In Collection" istnieje
-          if (!headers.includes('In Collection')) {
-            console.warn('Kolumna "In Collection" nie została znaleziona w nagłówkach CSV.');
+          // Sprawdzenie, czy nagłówek "Buy" istnieje
+          if (!headers.includes('Buy')) {
+            console.warn('Kolumna "Buy" nie została znaleziona w nagłówkach CSV.');
           }
 
           const allRows = lines.slice(1).map(line => line.split(','));
@@ -305,83 +302,20 @@
             throw new Error('CSV: brak danych lub za mało wierszy.');
           }
 
-          const bodyRows = allRows;
-
           // Logowanie informacji do konsoli
-          const totalRows = bodyRows.length;
+          const totalRows = allRows.length;
           console.log("Łączna liczba wierszy w CSV:", totalRows);
 
-          const rowsWithYear2023 = bodyRows.filter(row => row[1] && row[1].trim() === '2023').length;
-          console.log("Liczba wierszy gdzie Year == 2023:", rowsWithYear2023);
-
-          const rowsWithYear2024 = bodyRows.filter(row => row[1] && row[1].trim() === '2024').length;
-          console.log("Liczba wierszy gdzie Year == 2024:", rowsWithYear2024);
-
-          const rowsWithYear2025 = bodyRows.filter(row => row[1] && row[1].trim() === '2025').length;
-          console.log("Liczba wierszy gdzie Year == 2025:", rowsWithYear2025);
-
-          const rowsWithYearPremium = bodyRows.filter(row => row[1] && row[1].trim().toLowerCase() === 'premium').length;
-          console.log("Liczba wierszy gdzie Year == Premium:", rowsWithYearPremium);
-
-          const rowsWithInNie = bodyRows.filter(row => row[IN_COLLECTION_INDEX] && row[IN_COLLECTION_INDEX].trim().toLowerCase() === 'nie').length;
-          console.log("Liczba wierszy gdzie In Collection == Nie:", rowsWithInNie);
-
-          const rowsWithInTak = bodyRows.filter(row => row[IN_COLLECTION_INDEX] && row[IN_COLLECTION_INDEX].trim().toLowerCase() === 'tak').length;
-          console.log("Liczba wierszy gdzie In Collection == Tak:", rowsWithInTak);
-
-          // Filtrowanie danych: Year == 2024, In Collection == Nie
-          const filteredRows = bodyRows.filter(row => {
-            const yearVal = (row[1] || '').trim(); // Year
-            const inVal = (row[IN_COLLECTION_INDEX] || '').trim().toLowerCase(); // 'In Collection'
-
-            return yearVal === '2024' && inVal === 'nie';
+          // Filtrowanie danych: Buy == "Tak"
+          const rowsWithBuyTak = allRows.filter(row => {
+            const buyVal = row[BUY_INDEX] ? row[BUY_INDEX].trim().toLowerCase() : '';
+            return buyVal === 'tak';
           });
 
-          console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie:", filteredRows.length);
-
-          // Filtrowanie danych: Year == 2024, In Collection == Nie i Series != Red Edition
-          const furtherFilteredRows = filteredRows.filter(row => {
-            const seriesVal = (row[0] || '').trim();
-            return seriesVal.toLowerCase() !== 'red edition';
-          });
-
-          console.log("Ilość wierszy po filtrze Year=2024, In Collection=Nie i Series!=Red Edition:", furtherFilteredRows.length);
-
-          /************************************************************
-           * DODANIE FILTRACJI NA PODSTAWIE "Notes"
-           ************************************************************/
-          // Filtrowanie bez "Exclusive" w Notes
-          const withoutExclusiveInNotes = furtherFilteredRows.filter(row => {
-            const notes = row[NOTES_INDEX] ? row[NOTES_INDEX].trim() : '';
-            return !notes.includes('Exclusive');
-          });
-          // Usunięto poniższą linię zgodnie z Twoją prośbą
-          // console.log(`Ilość wierszy po filtrze bez "Exclusive" w Notes: ${withoutExclusiveInNotes.length}`);
-
-          // Filtrowanie bez "Super Treasure Hunt" w Notes
-          const withoutSuperTreasureHuntInNotes = furtherFilteredRows.filter(row => {
-            const notes = row[NOTES_INDEX] ? row[NOTES_INDEX].trim() : '';
-            return !notes.includes('Super Treasure Hunt');
-          });
-          // Usunięto poniższą linię zgodnie z Twoją prośbą
-          // console.log(`Ilość wierszy po filtrze bez "Super Treasure Hunt" w Notes: ${withoutSuperTreasureHuntInNotes.length}`);
-
-          // Filtrowanie bez "Exclusive" i "Super Treasure Hunt" w Notes
-          const withoutBothInNotes = furtherFilteredRows.filter(row => {
-            const notes = row[NOTES_INDEX] ? row[NOTES_INDEX].trim() : '';
-            return !notes.includes('Exclusive') && !notes.includes('Super Treasure Hunt');
-          });
-          console.log(`Ilość wierszy po filtrze bez "Super Treasure Hunt" & "Exclusive" w Notes: ${withoutBothInNotes.length}`);
+          console.log(`Ilość wierszy gdzie Buy == "Tak": ${rowsWithBuyTak.length}`);
 
           // Ostateczne filtrowanie do wyświetlenia w tabeli
-          const finalFilteredRows = withoutBothInNotes;
-
-          // Informacja o użytych nagłówkach do poszczególnych czynności
-          console.log("Użyte nagłówki do filtrowania:");
-          console.log(`- Year: ${headers[1]} (indeks 1)`);
-          console.log(`- In Collection: ${headers[IN_COLLECTION_INDEX]} (indeks ${IN_COLLECTION_INDEX})`);
-          console.log(`- Series: ${headers[0]} (indeks 0)`);
-          console.log(`- Notes: ${headers[NOTES_INDEX]} (indeks ${NOTES_INDEX})`);
+          const finalFilteredRows = rowsWithBuyTak;
 
           buildTable(finalFilteredRows);
         })
