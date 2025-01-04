@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  
+  <!-- Dodanie favicon -->
+  <link rel="icon" type="image/x-icon" href="../images/icon.ico">
+  
+  <!-- Zmiana tytułu strony -->
+  <title>Wymiana modeli Hot Wheels</title>
+  
+  <style>
+    /* Podstawowe style/reset */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f9f9f9;
+    }
+
+    /* Kontener górny na przycisk powrotu */
+    #back-button-container {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    #back-button {
+      display: flex;
+      align-items: center;
+      padding: 8px 16px;
+      background-color: #4CAF50;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      text-decoration: none;
+      color: white;
+      font-size: 1em;
+    }
+    #back-button:hover {
+      background-color: #45a049;
+    }
+    /* Ikonka/strzałka w lewo */
+    .arrow-left {
+      margin-right: 8px;
+      font-weight: bold;
+    }
+
+    /* Kontener główny z dwiema tabelami */
+    #tables-container {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: space-between;
+    }
+
+    /* Style dla obu tabel */
+    .exchange-table {
+      flex: 1 1 45%;
+      background-color: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .exchange-table h2 {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    tr:hover {
+      background-color: #f1f1f1;
+    }
+    /* Powiększamy checkboxy */
+    input[type="checkbox"] {
+      transform: scale(1.2);
+      cursor: pointer;
+    }
+    /* Responsywność dla małych ekranów */
+    @media (max-width: 768px) {
+      #tables-container {
+        flex-direction: column;
+      }
+      .exchange-table {
+        flex: 1 1 100%;
+      }
+    }
+
+    /* Kontener na powiadomienie */
+    #notification-container {
+      margin-top: 30px;
+      padding: 15px;
+      background-color: #e7f3fe;
+      border-left: 6px solid #2196F3;
+      border-radius: 4px;
+      display: none; /* Ukryte domyślnie */
+    }
+    #notification-container p {
+      margin: 0 0 10px 0;
+    }
+    #copy-button {
+      padding: 8px 16px;
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    #copy-button:hover {
+      background-color: #0b7dda;
+    }
+  </style>
+</head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-NGBTP4NSYS"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-NGBTP4NSYS');
+</script>
+<body>
+
+  <!-- Przycisk powrotu -->
+  <div id="back-button-container">
+    <button id="back-button" onclick="window.location.href='../index.html'">
+      <span class="arrow-left">←</span>
+      Powrót
+    </button>
+  </div>
+
+  <!-- Nagłówek strony -->
+  <h1>Wymiana modeli Hot Wheels</h1>
+  
+  <p>Wybierz modele, które chcesz wymienić oraz modele, które chciałbyś otrzymać. Po zaznaczeniu odpowiednich modeli, wygenerowane zostanie podsumowanie wymiany, które możesz skopiować i wysłać do sprzedawcy.</p>
+  
+  <!-- Kontener na dwie tabelki -->
+  <div id="tables-container">
+    <!-- Tabelka Sell -->
+    <div class="exchange-table" id="sell-table-container">
+      <h2>Modele, które chcesz wymienić</h2>
+      <table id="sell-table">
+        <thead>
+          <tr>
+            <th>Series</th>
+            <th>Year</th>
+            <th>Toy#</th>
+            <th>Col</th>
+            <th>Casting</th>
+            <th>Wybierz</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Wiersze zostaną wstawione dynamicznie -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Tabelka Buy -->
+    <div class="exchange-table" id="buy-table-container">
+      <h2>Modele, które chcesz otrzymać</h2>
+      <table id="buy-table">
+        <thead>
+          <tr>
+            <th>Series</th>
+            <th>Year</th>
+            <th>Toy#</th>
+            <th>Col</th>
+            <th>Casting</th>
+            <th>Wybierz</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Wiersze zostaną wstawione dynamicznie -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Powiadomienie z podsumowaniem -->
+  <div id="notification-container">
+    <p id="notification-text">Mogę zaoferować modele: <span id="offer-models"></span>, w zamian za: <span id="request-models"></span>.</p>
+    <button id="copy-button" onclick="copyNotification()">Kopiuj</button>
+  </div>
+
+  <!-- Skrypty JavaScript -->
+  <script>
+    // URL do pliku CSV
+    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pub?gid=1713753991&single=true&output=csv';
+
+    // Indeksy kolumn w CSV (dostosuj zgodnie z rzeczywistym plikiem CSV)
+    const COLUMN_SERIES = 0;
+    const COLUMN_YEAR = 1;
+    const COLUMN_TOY = 2; // Toy#
+    const COLUMN_COL = 3;
+    const COLUMN_CASTING = 4;
+    const COLUMN_SELL = 5; // Sell == Tak/Nie
+    const COLUMN_BUY = 6;  // Buy == Tak/Nie
+
+    // Funkcja do pobrania i przetworzenia CSV
+    async function fetchCSV() {
+      try {
+        const response = await fetch(csvUrl);
+        if (!response.ok) throw new Error('Błąd podczas pobierania pliku CSV.');
+        const data = await response.text();
+        processCSV(data);
+      } catch (error) {
+        console.error(error);
+        alert('Wystąpił problem z wczytaniem danych. Spróbuj ponownie później.');
+      }
+    }
+
+    // Funkcja do przetworzenia CSV
+    function processCSV(data) {
+      const lines = data.split('\n').map(line => line.trim()).filter(line => line !== '');
+      const headers = lines[0].split(',');
+      const rows = lines.slice(1).map(line => line.split(','));
+
+      // Filtruj wiersze dla Sell == Tak i Buy == Tak
+      const sellRows = rows.filter(row => (row[COLUMN_SELL] || '').trim().toLowerCase() === 'tak');
+      const buyRows = rows.filter(row => (row[COLUMN_BUY] || '').trim().toLowerCase() === 'tak');
+
+      populateTable('sell-table', sellRows);
+      populateTable('buy-table', buyRows);
+    }
+
+    // Funkcja do wypełnienia tabeli
+    function populateTable(tableId, rows) {
+      const tableBody = document.querySelector(`#${tableId} tbody`);
+      rows.forEach(row => {
+        const tr = document.createElement('tr');
+
+        // Series
+        const tdSeries = document.createElement('td');
+        tdSeries.textContent = row[COLUMN_SERIES] || '';
+        tr.appendChild(tdSeries);
+
+        // Year
+        const tdYear = document.createElement('td');
+        tdYear.textContent = row[COLUMN_YEAR] || '';
+        tr.appendChild(tdYear);
+
+        // Toy#
+        const tdToy = document.createElement('td');
+        tdToy.textContent = row[COLUMN_TOY] || '';
+        tr.appendChild(tdToy);
+
+        // Col
+        const tdCol = document.createElement('td');
+        tdCol.textContent = row[COLUMN_COL] || '';
+        tr.appendChild(tdCol);
+
+        // Casting
+        const tdCasting = document.createElement('td');
+        tdCasting.textContent = row[COLUMN_CASTING] || '';
+        tr.appendChild(tdCasting);
+
+        // Checkbox
+        const tdCheckbox = document.createElement('td');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.addEventListener('change', updateNotification);
+        tdCheckbox.appendChild(checkbox);
+        tr.appendChild(tdCheckbox);
+
+        tableBody.appendChild(tr);
+      });
+    }
+
+    // Funkcja do aktualizacji powiadomienia
+    function updateNotification() {
+      const sellModels = getSelectedModels('sell-table');
+      const buyModels = getSelectedModels('buy-table');
+
+      if (sellModels.length > 0 && buyModels.length > 0) {
+        document.getElementById('offer-models').textContent = buyModels.join(', ');
+        document.getElementById('request-models').textContent = sellModels.join(', ');
+        document.getElementById('notification-container').style.display = 'block';
+      } else {
+        document.getElementById('notification-container').style.display = 'none';
+      }
+    }
+
+    // Funkcja do pobrania zaznaczonych modeli z danej tabeli
+    function getSelectedModels(tableId) {
+      const table = document.getElementById(tableId);
+      const checkedBoxes = table.querySelectorAll('tbody input[type="checkbox"]:checked');
+      const models = [];
+      checkedBoxes.forEach(checkbox => {
+        const row = checkbox.closest('tr');
+        const toyNumber = row.cells[2].textContent.trim();
+        if (toyNumber) {
+          models.push(toyNumber);
+        }
+      });
+      return models;
+    }
+
+    // Funkcja do kopiowania powiadomienia
+    function copyNotification() {
+      const offer = document.getElementById('offer-models').textContent;
+      const request = document.getElementById('request-models').textContent;
+      const message = `Mogę zaoferować modele: ${offer}, w zamian za: ${request}.`;
+
+      // Tworzenie tymczasowego textarea
+      const textarea = document.createElement('textarea');
+      textarea.value = message;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+
+      alert('Treść została skopiowana do schowka!');
+    }
+
+    // Inicjalizacja po załadowaniu strony
+    window.onload = fetchCSV;
+  </script>
+</body>
+</html>
