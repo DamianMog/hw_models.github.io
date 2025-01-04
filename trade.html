@@ -327,6 +327,11 @@
         const headers = lines[0].split(',').map(header => header.trim());
         console.log("Nagłówki z pliku CSV:", headers);
 
+        // Logowanie kolejności nagłówków
+        headers.forEach((header, index) => {
+          console.log(`Indeks ${index}: ${header}`);
+        });
+
         // Sprawdzenie, czy kolumny "Sell" i "Buy" istnieją
         if (!headers[COLUMN_SELL] || !headers[COLUMN_BUY]) {
           throw new Error('CSV: brak wymaganych kolumn "Sell" lub "Buy".');
@@ -335,7 +340,7 @@
         const allRows = lines.slice(1).map(line => line.split(','));
         console.log("Łączna liczba wierszy w CSV:", allRows.length);
 
-        // Filtruj wiersze dla Sell == Tak i Buy == Tak
+        // Filtrowanie wierszy dla Sell == Tak i Buy == Tak
         const sellRows = allRows.filter(row => {
           const sellVal = row[COLUMN_SELL] ? row[COLUMN_SELL].trim().toLowerCase() : '';
           return sellVal === 'tak';
@@ -350,8 +355,8 @@
         console.log(`Ilość wierszy gdzie Buy == "Tak": ${buyRows.length}`);
 
         // Populacja tabel
-        populateTable('sell-table', sellRows, imagesSellMap);
-        populateTable('buy-table', buyRows, imagesBuyMap);
+        populateTable('sell-table', sellRows, imagesSellMap, 'Sell');
+        populateTable('buy-table', buyRows, imagesBuyMap, 'Buy');
       } catch (err) {
         console.error('Błąd podczas wczytywania CSV:', err);
         document.getElementById('tables-container').innerHTML =
@@ -360,9 +365,10 @@
     }
 
     // Funkcja do wypełnienia tabeli
-    function populateTable(tableId, rows, imagesMap) {
+    function populateTable(tableId, rows, imagesMap, tableType) {
       const tableBody = document.querySelector(`#${tableId} tbody`);
-      rows.forEach(row => {
+      console.log(`Populacja tabeli ${tableId} (${tableType}):`);
+      rows.forEach((row, rowIndex) => {
         const tr = document.createElement('tr');
 
         // Wypełnienie kolumn: Series, Year, Toy#, Col, Casting
@@ -374,6 +380,7 @@
 
         // Odczyt toyId z kolumny "Toy#" (zakładam, że Toy# jest na pozycji 2 w COLUMNS_FROM_CSV)
         const toyId = tr.cells[2].textContent.trim();
+        console.log(`Wiersz ${rowIndex + 1} - Toy#: ${toyId}`);
 
         // Kolumna ze zdjęciami
         const tdPhotos = document.createElement('td');
@@ -388,6 +395,7 @@
             img1.alt = `Foto modelu ${toyId} - 1`;
             img1.addEventListener('click', () => showImagePopup(imagesMap[toyId].photo1));
             tdPhotos.appendChild(img1);
+            console.log(`Dodano zdjęcie 1 dla Toy# ${toyId}: ${imagesMap[toyId].photo1}`);
           }
           if (imagesMap[toyId].photo2) {
             const img2 = document.createElement('img');
@@ -396,6 +404,7 @@
             img2.alt = `Foto modelu ${toyId} - 2`;
             img2.addEventListener('click', () => showImagePopup(imagesMap[toyId].photo2));
             tdPhotos.appendChild(img2);
+            console.log(`Dodano zdjęcie 2 dla Toy# ${toyId}: ${imagesMap[toyId].photo2}`);
           }
         } else {
           // Jeśli brak zdjęcia, pokaż domyślne
@@ -405,6 +414,7 @@
           img.alt = `Brak zdjęcia modelu ${toyId}`;
           img.addEventListener('click', () => showImagePopup(DEFAULT_IMAGE_PATH));
           tdPhotos.appendChild(img);
+          console.log(`Dodano domyślne zdjęcie dla Toy# ${toyId}`);
         }
         tr.appendChild(tdPhotos);
 
@@ -418,6 +428,7 @@
 
         tableBody.appendChild(tr);
       });
+      console.log(`Tabela ${tableId} (${tableType}) została wypełniona.`);
     }
 
     /************************************************************
@@ -443,10 +454,12 @@
     function showImagePopup(src) {
       popupImage.src = src;
       imagePopup.style.display = 'flex'; // widać overlay
+      console.log(`Wyświetlanie popupu ze zdjęciem: ${src}`);
     }
     function hideImagePopup() {
       imagePopup.style.display = 'none';
       popupImage.src = '';
+      console.log('Zamknięto popup ze zdjęciem.');
     }
 
     /************************************************************
@@ -472,12 +485,16 @@
       const sellModels = getSelectedModels('sell-table');
       const buyModels = getSelectedModels('buy-table');
 
+      console.log(`Aktualizacja powiadomienia. Sell Models: ${sellModels}, Buy Models: ${buyModels}`);
+
       if (sellModels.length > 0 && buyModels.length > 0) {
         document.getElementById('offer-models').textContent = buyModels.join(', ');
         document.getElementById('request-models').textContent = sellModels.join(', ');
         document.getElementById('notification-container').style.display = 'block';
+        console.log('Powiadomienie zostało wyświetlone.');
       } else {
         document.getElementById('notification-container').style.display = 'none';
+        console.log('Powiadomienie zostało ukryte.');
       }
     }
 
@@ -491,6 +508,7 @@
         const toyNumber = row.cells[2].textContent.trim();
         if (toyNumber) {
           models.push(toyNumber);
+          console.log(`Zaznaczono model: ${toyNumber} z tabeli ${tableId}`);
         }
       });
       return models;
@@ -511,14 +529,17 @@
       document.body.removeChild(textarea);
 
       alert('Treść została skopiowana do schowka!');
+      console.log('Skopiowano powiadomienie do schowka:', message);
     }
 
     /************************************************************
      * INICJALIZACJA
      ************************************************************/
     window.onload = async function() {
+      console.log('Inicjalizacja strony trade.html');
       await fetchAllImages();
       await fetchAndBuildTables();
+      console.log('Inicjalizacja zakończona.');
     };
   </script>
 </body>
