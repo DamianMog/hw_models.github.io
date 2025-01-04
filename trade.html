@@ -244,16 +244,16 @@
     // Indeksy kolumn w CSV (dostosuj zgodnie z rzeczywistym plikiem CSV)
     const COLUMN_SERIES = 0;
     const COLUMN_YEAR = 1;
-    const COLUMN_TOY = 2; // Toy# (zakładam, że Toy# jest na 3 pozycji)
-    const COLUMN_COL = 3;  // Col# 
-    const COLUMN_CASTING = 4; // Casting
+    const COLUMN_TOY = 3; // Toy# powinien być z indeksu 3
+    const COLUMN_COL = 4;  // Col# z indeksu 4
+    const COLUMN_CASTING = 5; // Casting z indeksu 5
     const COLUMN_SELL = 10; // Sell == Tak/Nie
     const COLUMN_BUY = 13;  // Buy == Tak/Nie
 
     // Kolumny z CSV do wypełnienia (Series, Year, Toy#, Col, Casting)
     const COLUMNS_FROM_CSV = [COLUMN_SERIES, COLUMN_YEAR, COLUMN_TOY, COLUMN_COL, COLUMN_CASTING];
 
-    // Mapa toyId -> { photo }
+    // Mapa toyId -> { photo1, photo2 }
     const imagesSellMap = {};
     const imagesBuyMap = {};
 
@@ -290,11 +290,13 @@
                     imagesMap[toyId] = {};
                   }
                   imagesMap[toyId].photo1 = file.download_url;
+                  console.log(`Dodano photo1 dla Toy# ${toyId}: ${file.download_url}`);
                 } else if (seq === "2") {
                   if (!imagesMap[toyId]) {
                     imagesMap[toyId] = {};
                   }
                   imagesMap[toyId].photo2 = file.download_url;
+                  console.log(`Dodano photo2 dla Toy# ${toyId}: ${file.download_url}`);
                 }
               }
             }
@@ -378,7 +380,7 @@
           tr.appendChild(td);
         });
 
-        // Odczyt toyId z kolumny "Toy#" (zakładam, że Toy# jest na pozycji 2 w COLUMNS_FROM_CSV)
+        // Odczyt toyId z kolumny "Toy#" (indeks 3)
         const toyId = tr.cells[2].textContent.trim();
         console.log(`Wiersz ${rowIndex + 1} - Toy#: ${toyId}`);
 
