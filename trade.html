@@ -74,6 +74,8 @@
       border: 1px solid #ddd;
       padding: 8px;
       text-align: center;
+      white-space: normal;
+      vertical-align: middle;
     }
     th {
       background-color: #f2f2f2;
@@ -120,6 +122,38 @@
     #copy-button:hover {
       background-color: #0b7dda;
     }
+
+    /* Styl zdjęć w tabeli */
+    .model-photo {
+      max-width: 80px;
+      max-height: 80px;
+      cursor: pointer; /* miniatura jest klikalna */
+    }
+
+    /* ======= POPUP Z OBRAZKIEM ======= */
+    #image-popup {
+      display: none; /* ukryte domyślnie */
+      position: fixed;
+      top: 0; left: 0; 
+      width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.8); 
+      justify-content: center; 
+      align-items: center;
+      z-index: 2000; /* powyżej innych elementów na stronie */
+    }
+    #image-popup img {
+      max-width: 90%;
+      max-height: 90%;
+      cursor: pointer;
+    }
+    #image-popup .close-button {
+      position: absolute;
+      top: 20px; right: 30px;
+      color: #fff;
+      font-size: 32px;
+      cursor: pointer;
+      user-select: none;
+    }
   </style>
 </head>
 <!-- Google tag (gtag.js) -->
@@ -144,7 +178,7 @@
   <!-- Nagłówek strony -->
   <h1>Wymiana modeli Hot Wheels</h1>
   
-  <h3>Jeżeli chcesz zakupić ode mnie jakieś modele, zaznacz je na poniższej liście a następnie skopiuj podsumowanie, które wygenerowało się pod tabelą. Prześlij takie podsumowanie do mnie w celu sfinalizowania wymiany.</h3>
+  <p>Wybierz modele, które chcesz wymienić oraz modele, które chciałbyś otrzymać. Po zaznaczeniu odpowiednich modeli, wygenerowane zostanie podsumowanie wymiany, które możesz skopiować i wysłać do sprzedawcy.</p>
   
   <!-- Kontener na dwie tabelki -->
   <div id="tables-container">
@@ -195,79 +229,186 @@
     <button id="copy-button" onclick="copyNotification()">Kopiuj</button>
   </div>
 
-  <!-- Skrypty JavaScript -->
+  <!-- ====== POPUP DO POWIĘKSZANIA ZDJĘĆ ===== -->
+  <div id="image-popup">
+    <span class="close-button" id="popup-close">&times;</span>
+    <img id="popup-image" src="" alt="Photo fullscreen" />
+  </div>
+
   <script>
-    // URL do pliku CSV
+    /************************************************************
+     * KONFIGURACJA KOLUMN
+     ************************************************************/
     const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTntplgD3H3MoafVFReoBHcC_p2gYC7zYsqbuKbBncSDAg4YLG92e72QVdvwWvx6JDZHosRtS-uD144/pub?gid=1713753991&single=true&output=csv';
 
     // Indeksy kolumn w CSV (dostosuj zgodnie z rzeczywistym plikiem CSV)
     const COLUMN_SERIES = 0;
     const COLUMN_YEAR = 1;
-    const COLUMN_TOY = 2; // Toy#
-    const COLUMN_COL = 3;
-    const COLUMN_CASTING = 4;
-    const COLUMN_SELL = 5; // Sell == Tak/Nie
-    const COLUMN_BUY = 6;  // Buy == Tak/Nie
+    const COLUMN_TOY = 2; // Toy# (zakładam, że Toy# jest na 3 pozycji)
+    const COLUMN_COL = 3;  // Col# 
+    const COLUMN_CASTING = 4; // Casting
+    const COLUMN_SELL = 10; // Sell == Tak/Nie
+    const COLUMN_BUY = 13;  // Buy == Tak/Nie
 
-    // Funkcja do pobrania i przetworzenia CSV
-    async function fetchCSV() {
+    // Kolumny z CSV do wypełnienia (Series, Year, Toy#, Col, Casting)
+    const COLUMNS_FROM_CSV = [COLUMN_SERIES, COLUMN_YEAR, COLUMN_TOY, COLUMN_COL, COLUMN_CASTING];
+
+    // Mapa toyId -> { photo }
+    const imagesSellMap = {};
+    const imagesBuyMap = {};
+
+    // Ścieżka do domyślnego zdjęcia
+    const DEFAULT_IMAGE_PATH = '../images/nophoto.png';
+
+    /************************************************************
+     * KONFIGURACJA POBIERANIA OBRAZKÓW Z GITHUB
+     ************************************************************/
+    const repoOwner = "DamianMog";
+    const repoName = "hw_models.github.io";
+    
+    // Funkcja do pobrania obrazków z określonego folderu
+    async function fetchImages(folderPath, imagesMap) {
+      const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${folderPath}`;
       try {
-        const response = await fetch(csvUrl);
-        if (!response.ok) throw new Error('Błąd podczas pobierania pliku CSV.');
-        const data = await response.text();
-        processCSV(data);
-      } catch (error) {
-        console.error(error);
-        alert('Wystąpił problem z wczytaniem danych. Spróbuj ponownie później.');
+        const response = await fetch(apiUrl);
+        if (!response.ok) throw new Error(`Błąd GitHub API: ${response.status}`);
+        const files = await response.json();
+        console.log(`Pobrane pliki z GitHuba (folder ${folderPath}):`, files);
+        
+        files.forEach(file => {
+          if (file.type === "file" && file.name.match(/\.(jpg|jpeg|png|gif|webp|jfif)$/i)) {
+            const nameNoExt = file.name.replace(/\.(jpg|jpeg|png|gif|webp|jfif)$/i, "");
+            const toyId = nameNoExt.split('_')[0].trim(); // Zakładam format ToyID_seq.extension
+
+            if (toyId) {
+              // Zakładam, że sekwencja (seq) jest na końcu nazwy po _
+              const parts = nameNoExt.split('_');
+              if (parts.length === 2) {
+                const seq = parts[1];
+                if (seq === "1") {
+                  if (!imagesMap[toyId]) {
+                    imagesMap[toyId] = {};
+                  }
+                  imagesMap[toyId].photo1 = file.download_url;
+                } else if (seq === "2") {
+                  if (!imagesMap[toyId]) {
+                    imagesMap[toyId] = {};
+                  }
+                  imagesMap[toyId].photo2 = file.download_url;
+                }
+              }
+            }
+          }
+        });
+        console.log(`imagesMap (${folderPath}):`, imagesMap);
+      } catch (err) {
+        console.error(`Błąd podczas pobierania plików z GitHub (${folderPath}):`, err);
       }
     }
 
-    // Funkcja do przetworzenia CSV
-    function processCSV(data) {
-      const lines = data.split('\n').map(line => line.trim()).filter(line => line !== '');
-      const headers = lines[0].split(',');
-      const rows = lines.slice(1).map(line => line.split(','));
+    // Pobierz obrazki z obu folderów
+    async function fetchAllImages() {
+      await fetchImages("sell/images", imagesSellMap);
+      await fetchImages("buy/images", imagesBuyMap);
+    }
 
-      // Filtruj wiersze dla Sell == Tak i Buy == Tak
-      const sellRows = rows.filter(row => (row[COLUMN_SELL] || '').trim().toLowerCase() === 'tak');
-      const buyRows = rows.filter(row => (row[COLUMN_BUY] || '').trim().toLowerCase() === 'tak');
+    /************************************************************
+     * POBIERANIE CSV I BUDOWA TABELI
+     ************************************************************/
+    async function fetchAndBuildTables() {
+      try {
+        const response = await fetch(csvUrl);
+        if (!response.ok) throw new Error(`Błąd sieci (CSV): ${response.status}`);
+        const csvData = await response.text();
 
-      populateTable('sell-table', sellRows);
-      populateTable('buy-table', buyRows);
+        const lines = csvData.split('\n').map(line => line.trim()).filter(line => line !== '');
+        if (lines.length < 2) throw new Error('CSV: brak danych lub za mało wierszy.');
+
+        const headers = lines[0].split(',').map(header => header.trim());
+        console.log("Nagłówki z pliku CSV:", headers);
+
+        // Sprawdzenie, czy kolumny "Sell" i "Buy" istnieją
+        if (!headers[COLUMN_SELL] || !headers[COLUMN_BUY]) {
+          throw new Error('CSV: brak wymaganych kolumn "Sell" lub "Buy".');
+        }
+
+        const allRows = lines.slice(1).map(line => line.split(','));
+        console.log("Łączna liczba wierszy w CSV:", allRows.length);
+
+        // Filtruj wiersze dla Sell == Tak i Buy == Tak
+        const sellRows = allRows.filter(row => {
+          const sellVal = row[COLUMN_SELL] ? row[COLUMN_SELL].trim().toLowerCase() : '';
+          return sellVal === 'tak';
+        });
+
+        const buyRows = allRows.filter(row => {
+          const buyVal = row[COLUMN_BUY] ? row[COLUMN_BUY].trim().toLowerCase() : '';
+          return buyVal === 'tak';
+        });
+
+        console.log(`Ilość wierszy gdzie Sell == "Tak": ${sellRows.length}`);
+        console.log(`Ilość wierszy gdzie Buy == "Tak": ${buyRows.length}`);
+
+        // Populacja tabel
+        populateTable('sell-table', sellRows, imagesSellMap);
+        populateTable('buy-table', buyRows, imagesBuyMap);
+      } catch (err) {
+        console.error('Błąd podczas wczytywania CSV:', err);
+        document.getElementById('tables-container').innerHTML =
+          '<p>Wystąpił błąd podczas wczytywania danych. Spróbuj ponownie później.</p>';
+      }
     }
 
     // Funkcja do wypełnienia tabeli
-    function populateTable(tableId, rows) {
+    function populateTable(tableId, rows, imagesMap) {
       const tableBody = document.querySelector(`#${tableId} tbody`);
       rows.forEach(row => {
         const tr = document.createElement('tr');
 
-        // Series
-        const tdSeries = document.createElement('td');
-        tdSeries.textContent = row[COLUMN_SERIES] || '';
-        tr.appendChild(tdSeries);
+        // Wypełnienie kolumn: Series, Year, Toy#, Col, Casting
+        COLUMNS_FROM_CSV.forEach(colIndex => {
+          const td = document.createElement('td');
+          td.textContent = (row[colIndex] || '').trim();
+          tr.appendChild(td);
+        });
 
-        // Year
-        const tdYear = document.createElement('td');
-        tdYear.textContent = row[COLUMN_YEAR] || '';
-        tr.appendChild(tdYear);
+        // Odczyt toyId z kolumny "Toy#" (zakładam, że Toy# jest na pozycji 2 w COLUMNS_FROM_CSV)
+        const toyId = tr.cells[2].textContent.trim();
 
-        // Toy#
-        const tdToy = document.createElement('td');
-        tdToy.textContent = row[COLUMN_TOY] || '';
-        tr.appendChild(tdToy);
+        // Kolumna ze zdjęciami
+        const tdPhotos = document.createElement('td');
+        tdPhotos.innerHTML = '';
 
-        // Col
-        const tdCol = document.createElement('td');
-        tdCol.textContent = row[COLUMN_COL] || '';
-        tr.appendChild(tdCol);
+        if (toyId && imagesMap[toyId]) {
+          // Jeśli istnieją zdjęcia
+          if (imagesMap[toyId].photo1) {
+            const img1 = document.createElement('img');
+            img1.classList.add('model-photo');
+            img1.src = imagesMap[toyId].photo1;
+            img1.alt = `Foto modelu ${toyId} - 1`;
+            img1.addEventListener('click', () => showImagePopup(imagesMap[toyId].photo1));
+            tdPhotos.appendChild(img1);
+          }
+          if (imagesMap[toyId].photo2) {
+            const img2 = document.createElement('img');
+            img2.classList.add('model-photo');
+            img2.src = imagesMap[toyId].photo2;
+            img2.alt = `Foto modelu ${toyId} - 2`;
+            img2.addEventListener('click', () => showImagePopup(imagesMap[toyId].photo2));
+            tdPhotos.appendChild(img2);
+          }
+        } else {
+          // Jeśli brak zdjęcia, pokaż domyślne
+          const img = document.createElement('img');
+          img.classList.add('model-photo');
+          img.src = DEFAULT_IMAGE_PATH;
+          img.alt = `Brak zdjęcia modelu ${toyId}`;
+          img.addEventListener('click', () => showImagePopup(DEFAULT_IMAGE_PATH));
+          tdPhotos.appendChild(img);
+        }
+        tr.appendChild(tdPhotos);
 
-        // Casting
-        const tdCasting = document.createElement('td');
-        tdCasting.textContent = row[COLUMN_CASTING] || '';
-        tr.appendChild(tdCasting);
-
-        // Checkbox
+        // Kolumna z checkboxem
         const tdCheckbox = document.createElement('td');
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
@@ -279,7 +420,54 @@
       });
     }
 
-    // Funkcja do aktualizacji powiadomienia
+    /************************************************************
+     * POPUP ZE ZDJĘCIEM (FULL SCREEN)
+     ************************************************************/
+    const imagePopup = document.getElementById('image-popup');
+    const popupImage = document.getElementById('popup-image');
+    const popupCloseBtn = document.getElementById('popup-close');
+
+    // Kliknięcie w "X" zamyka popup
+    popupCloseBtn.addEventListener('click', hideImagePopup);
+
+    // Kliknięcie w tło lub sam obrazek -> zamyka popup
+    imagePopup.addEventListener('click', hideImagePopup);
+
+    // ESC zamyka popup
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        hideImagePopup();
+      }
+    });
+
+    function showImagePopup(src) {
+      popupImage.src = src;
+      imagePopup.style.display = 'flex'; // widać overlay
+    }
+    function hideImagePopup() {
+      imagePopup.style.display = 'none';
+      popupImage.src = '';
+    }
+
+    /************************************************************
+     * ALGORYTM ODMIANY LICZEBNIKA
+     ************************************************************/
+    function odmianaLiczebnika(liczba, singular, plural234, plural5) {
+      const ostatnia_cyfra = liczba % 10;
+      const ostatnie_dwie_cyfry = liczba % 100;
+
+      if (ostatnia_cyfra === 1 && ostatnie_dwie_cyfry !== 11) {
+        return `${liczba} ${singular}`;
+      } else if ([2, 3, 4].includes(ostatnia_cyfra) && !(12 <= ostatnie_dwie_cyfry && ostatnie_dwie_cyfry <=14)) {
+        return `${liczba} ${plural234}`;
+      } else {
+        return `${liczba} ${plural5}`;
+      }
+    }
+
+    /************************************************************
+     * OBSŁUGA PODSUMOWANIA I KOPIOWANIA
+     ************************************************************/
     function updateNotification() {
       const sellModels = getSelectedModels('sell-table');
       const buyModels = getSelectedModels('buy-table');
@@ -325,8 +513,13 @@
       alert('Treść została skopiowana do schowka!');
     }
 
-    // Inicjalizacja po załadowaniu strony
-    window.onload = fetchCSV;
+    /************************************************************
+     * INICJALIZACJA
+     ************************************************************/
+    window.onload = async function() {
+      await fetchAllImages();
+      await fetchAndBuildTables();
+    };
   </script>
 </body>
 </html>
