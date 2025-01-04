@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   
-  <!-- Dodanie favicon -->
-  <link rel="icon" type="image/x-icon" href="../images/icon.ico">
+  <!-- Poprawiona ścieżka do favicon -->
+  <link rel="icon" type="image/x-icon" href="images/icon.ico">
   
   <!-- Zmiana tytułu strony -->
   <title>Wymiana modeli Hot Wheels</title>
@@ -193,7 +193,8 @@
             <th>Toy#</th>
             <th>Col</th>
             <th>Casting</th>
-            <th>Wybierz</th>
+            <th>Zdj</th> <!-- Zmieniono "Wybierz" na "Zdj" -->
+            <th>Wybierz</th> <!-- Dodano nową kolumnę z checkboxami -->
           </tr>
         </thead>
         <tbody>
@@ -213,7 +214,8 @@
             <th>Toy#</th>
             <th>Col</th>
             <th>Casting</th>
-            <th>Wybierz</th>
+            <th>Zdj</th> <!-- Zmieniono "Wybierz" na "Zdj" -->
+            <th>Wybierz</th> <!-- Dodano nową kolumnę z checkboxami -->
           </tr>
         </thead>
         <tbody>
@@ -257,8 +259,8 @@
     const imagesSellMap = {};
     const imagesBuyMap = {};
 
-    // Ścieżka do domyślnego zdjęcia
-    const DEFAULT_IMAGE_PATH = '../images/nophoto.png';
+    // Ścieżka do domyślnego zdjęcia (usunąłem logikę wstawiania nophoto)
+    // const DEFAULT_IMAGE_PATH = '../images/nophoto.png'; // Usunięto zgodnie z Twoją prośbą
 
     /************************************************************
      * KONFIGURACJA POBIERANIA OBRAZKÓW Z GITHUB
@@ -335,7 +337,10 @@
         });
 
         // Sprawdzenie, czy kolumny "Sell" i "Buy" istnieją
-        if (!headers[COLUMN_SELL] || !headers[COLUMN_BUY]) {
+        if (headers[COLUMN_SELL] !== undefined && headers[COLUMN_BUY] !== undefined) {
+          console.log(`Kolumna "Sell" znajduje się na indeksie ${COLUMN_SELL}`);
+          console.log(`Kolumna "Buy" znajduje się na indeksie ${COLUMN_BUY}`);
+        } else {
           throw new Error('CSV: brak wymaganych kolumn "Sell" lub "Buy".');
         }
 
@@ -384,7 +389,7 @@
         const toyId = tr.cells[2].textContent.trim();
         console.log(`Wiersz ${rowIndex + 1} - Toy#: ${toyId}`);
 
-        // Kolumna ze zdjęciami
+        // Kolumna ze zdjęciami ("Zdj")
         const tdPhotos = document.createElement('td');
         tdPhotos.innerHTML = '';
 
@@ -409,18 +414,12 @@
             console.log(`Dodano zdjęcie 2 dla Toy# ${toyId}: ${imagesMap[toyId].photo2}`);
           }
         } else {
-          // Jeśli brak zdjęcia, pokaż domyślne
-          const img = document.createElement('img');
-          img.classList.add('model-photo');
-          img.src = DEFAULT_IMAGE_PATH;
-          img.alt = `Brak zdjęcia modelu ${toyId}`;
-          img.addEventListener('click', () => showImagePopup(DEFAULT_IMAGE_PATH));
-          tdPhotos.appendChild(img);
-          console.log(`Dodano domyślne zdjęcie dla Toy# ${toyId}`);
+          // Jeśli brak zdjęcia, nie dodawaj nic
+          console.log(`Brak zdjęć dla Toy# ${toyId}, nie dodano żadnego obrazu.`);
         }
         tr.appendChild(tdPhotos);
 
-        // Kolumna z checkboxem
+        // Kolumna z checkboxem ("Wybierz")
         const tdCheckbox = document.createElement('td');
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
