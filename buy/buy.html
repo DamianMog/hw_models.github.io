@@ -75,6 +75,7 @@
     }
     th {
       background-color: #f4f4f4;
+      cursor: pointer; /* dodajemy kursor na nagłówki do sortowania */
     }
 
     /* Wyróżnienie wiersza wybranego */
@@ -158,6 +159,16 @@
       cursor: pointer;
       user-select: none;
     }
+
+    /* ====== Pole wyszukiwania ===== */
+    #searchInput {
+      width: 300px;
+      font-size: 1em;
+      padding: 6px;
+      margin-top: 10px;
+      margin-bottom: 10px;
+      display: block; /* aby był w osobnej linii */
+    }
   </style>
 </head>
 <!-- Google tag (gtag.js) -->
@@ -166,7 +177,6 @@
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-
   gtag('config', 'G-NGBTP4NSYS');
 </script>
 <body>
@@ -182,6 +192,9 @@
   <h1>Lista modeli, które chcę kupić</h1>
   <h3>Jeżeli posiadasz na sprzedaż model z poniższej listy, możesz go zaznaczyć, a następnie skopiować podsumowanie które znajduje się pod tabelą. Prześlij takie podsumowanie do mnie w celu sfinalizowania zakupu. Interesują mnie tylko modele w idealnym stanie, na krótkich kartach (nie STH). W grę wchodzi wymiana za modele które posiadam na sprzedaż <a href="https://damianmog.github.io/hw_models.github.io/sell/sell.html" target="_blank">tutaj</a>.</h3>
   
+  <!-- Pole do wyszukiwania -->
+  <input type="text" id="searchInput" placeholder="Szukaj..."/>
+
   <!-- Kontener na tabelę z danymi -->
   <div id="table-container">
     <p>Wczytywanie danych...</p>
@@ -212,18 +225,17 @@
       'Series',
       'Year',
       'Toy #',
-      'Col. #',    // Zmieniono z "Casting" na "Col. #"
-      'Casting',   // Zmieniono z "Set #" na "Casting"
-      'Set #',     // Dodano nową kolumnę "Set #"
-      'Zdj.',      // Zmieniono z "Photo" na "Zdj."
+      'Col. #',
+      'Casting',
+      'Set #',
+      'Zdj.',
       'Posiadam'
     ];
 
     // Kolumny z CSV do wypełnienia (Series, Year, Toy #, Col. #, Casting, Set #)
-    // Series = 0, Year =1, Toy #=3, Col. #=4, Casting=5, Set #=7
     const COLUMNS_FROM_CSV = [0, 1, 3, 4, 5, 7];
 
-    // Indeks kolumny "Buy" (zero-based index)
+    // Indeks kolumny "Buy" w CSV
     const BUY_INDEX = 13;
 
     // Ścieżka do domyślnego zdjęcia
@@ -231,6 +243,11 @@
 
     // Mapa toyId -> { photo }
     const imagesMap = {};
+
+    // Zmienne do sortowania
+    let originalRows = [];        // Oryginalna kolejność wierszy
+    let currentSortColumn = -1;   // Która kolumna jest posortowana (-1 = żadna)
+    let sortState = 0;           // 0 -> brak, 1 -> asc, 2 -> desc
 
     /************************************************************
      * KONFIGURACJA POBIERANIA OBRAZKÓW Z GITHUB
@@ -241,8 +258,6 @@
     const folderPath = "buy/images";  
     const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${folderPath}`;
 
-    // Najpierw pobieramy listę plików z GitHuba,
-    // by stworzyć imagesMap (toyId => photo)
     fetch(apiUrl)
       .then(resp => {
         if (!resp.ok) throw new Error(`Błąd GitHub API: ${resp.status}`);
@@ -250,10 +265,9 @@
       })
       .then(files => {
         files.forEach(file => {
-          if (file.type === "file" && file.name.match(/\.(jpg|jpeg|png|gif|webp|jfif)$/i)) { // Dodano webp i jfif
-            const nameNoExt = file.name.replace(/\.(jpg|jpeg|png|gif|webp|jfif)$/i, ""); // Dodano webp i jfif
+          if (file.type === "file" && file.name.match(/\.(jpg|jpeg|png|gif|webp|jfif)$/i)) {
+            const nameNoExt = file.name.replace(/\.(jpg|jpeg|png|gif|webp|jfif)$/i, "");
             const toyId = nameNoExt.replace(/\./g, '').trim(); // usunięcie kropek i trim
-
             if (toyId) {
               imagesMap[toyId] = file.download_url;
             }
@@ -290,12 +304,10 @@
           const headers = headerLine.split(',').map(header => header.trim());
           console.log("Nagłówki z pliku CSV:", headers);
 
-          // Logowanie kolejności nagłówków
           headers.forEach((header, index) => {
             console.log(`Indeks ${index}: ${header}`);
           });
 
-          // Sprawdzenie, czy nagłówek "Buy" istnieje
           if (!headers.includes('Buy')) {
             console.warn('Kolumna "Buy" nie została znaleziona w nagłówkach CSV.');
           }
@@ -305,7 +317,6 @@
             throw new Error('CSV: brak danych lub za mało wierszy.');
           }
 
-          // Logowanie informacji do konsoli
           const totalRows = allRows.length;
           console.log("Łączna liczba wierszy w CSV:", totalRows);
 
@@ -317,14 +328,12 @@
 
           console.log(`Ilość wierszy gdzie Buy == "Tak": ${rowsWithBuyTak.length}`);
 
-          // Ostateczne filtrowanie do wyświetlenia w tabeli
           const finalFilteredRows = rowsWithBuyTak;
 
           buildTable(finalFilteredRows);
         })
         .catch(err => {
           console.error('Błąd podczas wczytywania CSV:', err);
-          // Poprawiono przypisanie innerHTML na jednej linii, aby uniknąć błędu składniowego
           document.getElementById('table-container').innerHTML = '<p>Wystąpił błąd podczas wczytywania danych.</p>';
         });
     }
@@ -336,9 +345,15 @@
       const thead = document.createElement('thead');
       const headerRow = document.createElement('tr');
 
-      HEADERS.forEach(h => {
+      HEADERS.forEach((h, colIndex) => {
         const th = document.createElement('th');
         th.textContent = h;
+
+        // Dodajemy obsługę kliknięcia w nagłówek do sortowania
+        th.addEventListener('click', () => {
+          sortColumn(table, colIndex);
+        });
+
         headerRow.appendChild(th);
       });
       thead.appendChild(headerRow);
@@ -351,7 +366,7 @@
         const tr = document.createElement('tr');
 
         // Wypełnienie kolumn: Series, Year, Toy #, Col. #, Casting, Set #
-        COLUMNS_FROM_CSV.forEach((colIndex) => {
+        COLUMNS_FROM_CSV.forEach(colIndex => {
           const td = document.createElement('td');
           td.textContent = (row[colIndex] || '').trim();
           tr.appendChild(td);
@@ -360,15 +375,13 @@
         // Odczyt toyId
         const toyId = (row[3] || '').trim(); // Toy # jest w kolumnie 3
 
-        // Kolumna Zdj. (wcześniej Photo)
+        // Kolumna Zdj.
         const tdPhoto = document.createElement('td');
-        tdPhoto.innerHTML = '';
         if (toyId && imagesMap[toyId]) {
           const img = document.createElement('img');
           img.classList.add('model-photo');
           img.src = imagesMap[toyId];
           img.alt = `Foto modelu ${toyId}`;
-          // Kliknięcie w zdjęcie => fullscreen
           img.addEventListener('click', () => {
             showImagePopup(imagesMap[toyId]);
           });
@@ -376,9 +389,8 @@
         } else {
           const img = document.createElement('img');
           img.classList.add('model-photo');
-          img.src = DEFAULT_IMAGE_PATH; // Ścieżka do domyślnego zdjęcia
+          img.src = DEFAULT_IMAGE_PATH;
           img.alt = `Brak zdjęcia modelu ${toyId}`;
-          // Opcjonalnie, możesz dodać zdarzenie kliknięcia, aby pokazywać popup z domyślnym zdjęciem
           img.addEventListener('click', () => {
             showImagePopup(DEFAULT_IMAGE_PATH);
           });
@@ -410,8 +422,88 @@
       container.innerHTML = '';  
       container.appendChild(table);
 
+      // Zapamiętujemy oryginalną kolejność wierszy (do przywracania, gdy sortState = 0)
+      originalRows = Array.from(tbody.querySelectorAll('tr'));
+
       // Początkowa aktualizacja
       updateSummary();
+
+      // Ustawiamy obsługę wyszukiwania
+      const searchInput = document.getElementById('searchInput');
+      searchInput.addEventListener('input', () => {
+        applySearch(searchInput.value, table);
+      });
+    }
+
+    /************************************************************
+     * FUNKCJE SORTOWANIA
+     ************************************************************/
+    function sortColumn(table, colIndex) {
+      const tbody = table.querySelector('tbody');
+
+      // Jeśli klikamy ponownie w tę samą kolumnę, zmieniamy stan sortowania
+      // 0 -> 1 -> 2 -> 0 ...
+      if (currentSortColumn === colIndex) {
+        sortState = (sortState + 1) % 3;
+      } else {
+        currentSortColumn = colIndex;
+        sortState = 1; // zacznij od rosnącego
+      }
+
+      // Gdy sortState = 0 (brak), przywracamy oryginalną kolejność
+      if (sortState === 0) {
+        originalRows.forEach(row => tbody.appendChild(row));
+        return;
+      }
+
+      // W innym przypadku sortujemy
+      const rowsArray = Array.from(tbody.querySelectorAll('tr'));
+
+      rowsArray.sort((a, b) => {
+        const aVal = a.cells[colIndex]?.textContent.trim() || "";
+        const bVal = b.cells[colIndex]?.textContent.trim() || "";
+
+        // Sprawdzamy, czy to liczby
+        const aNum = parseFloat(aVal.replace(',', '.'));
+        const bNum = parseFloat(bVal.replace(',', '.'));
+        const aIsNum = !isNaN(aNum);
+        const bIsNum = !isNaN(bNum);
+
+        let compareResult = 0;
+        if (aIsNum && bIsNum) {
+          compareResult = aNum - bNum;
+        } else {
+          compareResult = aVal.localeCompare(bVal);
+        }
+
+        // sortState: 1 => asc, 2 => desc
+        return (sortState === 1) ? compareResult : -compareResult;
+      });
+
+      rowsArray.forEach(row => tbody.appendChild(row));
+    }
+
+    /************************************************************
+     * FUNKCJA WYSZUKIWANIA
+     ************************************************************/
+    function applySearch(searchTerm, table) {
+      const term = searchTerm.trim().toLowerCase();
+      const rows = table.querySelectorAll('tbody tr');
+
+      if (!term) {
+        // jeśli pole jest puste, pokazujemy wszystkie wiersze
+        rows.forEach(row => {
+          row.style.display = "";
+        });
+        return;
+      }
+
+      rows.forEach(row => {
+        // Sprawdzamy cały tekst wiersza
+        const rowText = row.innerText.toLowerCase();
+        // Jeżeli wiersz zawiera wyszukiwaną frazę, pokazujemy, w innym razie ukrywamy
+        row.style.display = rowText.includes(term) ? "" : "none";
+      });
     }
 
     /************************************************************
@@ -421,13 +513,8 @@
     const popupImage = document.getElementById('popup-image');
     const popupCloseBtn = document.getElementById('popup-close');
 
-    // Kliknięcie w "X" zamyka popup
     popupCloseBtn.addEventListener('click', hideImagePopup);
-
-    // Kliknięcie w tło lub sam obrazek -> zamyka popup
     imagePopup.addEventListener('click', hideImagePopup);
-
-    // ESC zamyka popup
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         hideImagePopup();
@@ -436,7 +523,7 @@
 
     function showImagePopup(src) {
       popupImage.src = src;
-      imagePopup.style.display = 'flex'; // widać overlay
+      imagePopup.style.display = 'flex';
     }
     function hideImagePopup() {
       imagePopup.style.display = 'none';
@@ -481,13 +568,12 @@
         // 5: Set #
         // 6: Zdj.
         // 7: Posiadam (checkbox)
-        const checkboxCell = row.cells[7]; // Zaktualizowano indeks
+        const checkboxCell = row.cells[7];
         const checkbox = checkboxCell.querySelector('input[type="checkbox"]');
         if (!checkbox) return;
 
         if (checkbox.checked) {
           selectedCount++;
-
           const toyId = row.cells[2].textContent.trim(); // Toy # jest w kolumnie 2
           selectedModels.push(`${toyId}`);
         }
