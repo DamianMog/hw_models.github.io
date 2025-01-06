@@ -84,7 +84,7 @@
       background-color: #caf0f8;
     }
 
-    /* Powiększamy checkbox i ustawiamy kursory (tak jak w poprzedniej stronie) */
+    /* Powiększamy checkbox i ustawiamy kursory */
     input[type="checkbox"] {
       transform: scale(1.3);
       cursor: pointer;
@@ -154,8 +154,7 @@
       user-select: none;
     }
 
-    /* ====== Pole i kontener wyszukiwania (TAK JAK W SELL) ===== */
-    /* DODANE/ ZMIENIONE */
+    /* ====== Pole i kontener wyszukiwania (jak w sell) ===== */
     #search-container {
       margin-top: 10px;
       position: relative;
@@ -187,7 +186,6 @@
     }
 
     /* Klasa wyróżniająca strzałkę w nagłówku przy sortowaniu */
-    /* DODANE/ ZMIENIONE */
     .sort-arrow {
       position: absolute;
       right: 8px;
@@ -224,8 +222,7 @@
     <a href="https://damianmog.github.io/hw_models.github.io/sell/sell.html" target="_blank">tutaj</a>.
   </h3>
   
-  <!-- Kontener wyszukiwania (TAK JAK W SELL) -->
-  <!-- DODANE/ ZMIENIONE -->
+  <!-- Kontener wyszukiwania (jak w sell) -->
   <div id="search-container">
     <input type="text" id="searchInput" placeholder="Szukaj..."/>
     <button id="clearSearch">X</button>
@@ -338,11 +335,6 @@
 
           const headerLine = lines[0];
           const headers = headerLine.split(',').map(header => header.trim());
-          console.log("Nagłówki z pliku CSV:", headers);
-
-          if (!headers.includes('Buy')) {
-            console.warn('Kolumna "Buy" nie została znaleziona w nagłówkach CSV.');
-          }
 
           const allRows = lines.slice(1).map(line => line.split(','));
           if (allRows.length < 1) {
@@ -396,20 +388,19 @@
           const td = document.createElement('td');
           const val = (row[colIndex] || '').trim();
           td.textContent = val;
+
           // Zachowujemy oryginalny tekst do późniejszego highlightowania
           td.dataset.originalText = val;
           tr.appendChild(td);
         });
 
-        // Odczyt toyId = wartość z kolumny "Toy #" => CSV index 3, 
-        // ale w docelowej tabeli: HEADERS[2] (ponieważ Series=0, Year=1, Toy#=2)
+        // Odczyt toyId = wartość z kolumny "Toy #" => CSV index 3
         const toyId = (row[3] || '').trim();
 
-        // Kolumna Zdj. (HEADERS index 6)
+        // Kolumna Zdj. (HEADERS index 6) - NIE ustawiać dataset.originalText = ""
+        // aby nie nadpisywać zawartości w trakcie wyszukiwania
         const tdPhoto = document.createElement('td');
-        // Domyślnie puste, do highlightu
-        tdPhoto.dataset.originalText = "";
-
+        
         if (toyId && imagesMap[toyId]) {
           const img = document.createElement('img');
           img.classList.add('model-photo');
@@ -420,7 +411,6 @@
           });
           tdPhoto.appendChild(img);
         } else {
-          // Brak zdjęcia => wstawiamy "no photo"
           const img = document.createElement('img');
           img.classList.add('model-photo');
           img.src = DEFAULT_IMAGE_PATH;
@@ -432,10 +422,8 @@
         }
         tr.appendChild(tdPhoto);
 
-        // Kolumna Posiadam (checkbox) (HEADERS index 7)
+        // Kolumna Posiadam (HEADERS index 7) - również NIE ustawiamy dataset.originalText
         const tdPosiadam = document.createElement('td');
-        tdPosiadam.dataset.originalText = "";
-
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.addEventListener('change', function() {
@@ -464,7 +452,7 @@
       // Początkowa aktualizacja
       updateSummary();
 
-      // Obsługa wyszukiwania z przyciskiem X (TAK JAK W SELL)
+      // Obsługa wyszukiwania z przyciskiem X (jak w sell)
       const searchInput = document.getElementById('searchInput');
       const clearBtn = document.getElementById('clearSearch');
 
@@ -516,9 +504,8 @@
       arrow.textContent = (sortState === 1) ? '↑' : '↓';
       ths[colIndex].appendChild(arrow);
 
-      // W innym przypadku sortujemy
+      // Sortujemy
       const rowsArray = Array.from(tbody.querySelectorAll('tr'));
-
       rowsArray.sort((a, b) => {
         const aVal = a.cells[colIndex]?.textContent.trim() || "";
         const bVal = b.cells[colIndex]?.textContent.trim() || "";
@@ -536,7 +523,6 @@
           compareResult = aVal.localeCompare(bVal);
         }
 
-        // sortState: 1 => asc, 2 => desc
         return (sortState === 1) ? compareResult : -compareResult;
       });
 
@@ -544,7 +530,7 @@
     }
 
     /************************************************************
-     * FUNKCJA WYSZUKIWANIA Z PODŚWIETLENIEM (TAK JAK W SELL)
+     * FUNKCJA WYSZUKIWANIA Z PODŚWIETLENIEM (jak w sell)
      ************************************************************/
     function applySearch(searchTerm, table) {
       const term = searchTerm.trim().toLowerCase();
@@ -561,7 +547,7 @@
           }
         });
 
-        // Jeżeli pole wyszukiwania jest puste => pokaż wszystkie wiersze i koniec
+        // Jeśli pole wyszukiwania jest puste => pokaż wszystkie wiersze i koniec
         if (!term) {
           row.style.display = "";
           return;
@@ -582,7 +568,7 @@
               );
               cell.innerHTML = highlighted;
             } else {
-              cell.innerHTML = original; // bez highlight
+              cell.innerHTML = original; 
             }
           }
         });
@@ -641,7 +627,6 @@
 
       const rows = table.querySelectorAll('tbody tr');
       let selectedCount = 0;
-
       const selectedModels = [];
 
       rows.forEach(row => {
