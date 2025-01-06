@@ -76,26 +76,7 @@
     }
     th {
       background-color: #f4f4f4;
-      cursor: pointer; /* wskaźnik, że można klikać w nagłówek do sortowania */
-      position: relative;
-      user-select: none;
-    }
-
-    /* Ikona sortowania (strzałka) – wstawiana pseudoelementem */
-    th.sort-asc::after,
-    th.sort-desc::after {
-      content: '';
-      border: 6px solid transparent;
-      position: absolute;
-      right: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-    }
-    th.sort-asc::after {
-      border-bottom-color: #333; /* strzałka w górę */
-    }
-    th.sort-desc::after {
-      border-top-color: #333; /* strzałka w dół */
+      cursor: pointer; /* Dodajemy kursor na nagłówki do sortowania */
     }
 
     /* Wyróżnienie wiersza wybranego */
@@ -195,46 +176,43 @@
       margin-left: 10px;
     }
 
-    /* ======= WYSZUKIWANIE ======= */
+    /* Styl dla podświetlonego fragmentu wyszukiwanej frazy */
+    .highlight {
+      background-color: yellow;
+    }
+
+    /* Kontener wyszukiwania */
     #search-container {
       margin-top: 10px;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      position: relative;
-      max-width: 300px;
+      position: relative; /* aby umieścić przycisk "X" w tym samym kontenerze */
+      display: inline-block;
     }
-    #search-input {
-      width: 100%;
-      padding: 6px 8px;
-      box-sizing: border-box;
+    #searchInput {
+      padding-right: 25px; /* odstęp na ikonę X */
     }
-    #search-clear {
+    #clearSearch {
       position: absolute;
-      right: 10px;
+      right: 5px;
+      top: 50%;
+      transform: translateY(-50%);
       cursor: pointer;
       font-weight: bold;
-      color: #888;
-      display: none; /* Pokażemy, gdy w polu jest cokolwiek wpisane */
-      background: #f0f0f0;
-      border-radius: 50%;
-      padding: 0 6px;
-    }
-    .highlight {
-      background-color: yellow; /* jaskrawe podświetlenie */
+      display: none; /* na początku ukrywamy */
+      background: none;
+      border: none;
+      color: #444;
     }
   </style>
 </head>
-
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-NGBTP4NSYS"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
+
   gtag('config', 'G-NGBTP4NSYS');
 </script>
-
 <body>
 
   <!-- Przycisk powrotu -->
@@ -250,10 +228,10 @@
   
   <h3>Jeżeli chcesz zakupić ode mnie jakieś modele, zaznacz je na poniższej liście a następnie skopiuj podsumowanie, które wygenerowało się pod tabelą. Prześlij takie podsumowanie do mnie w celu sfinalizowania sprzedaży. Każde 5 modeli to dodatkowa zniżka.</h3>
   
-  <!-- Kontener na wyszukiwanie -->
+  <!-- Kontener wyszukiwania -->
   <div id="search-container">
-    <input type="text" id="search-input" placeholder="Wyszukaj..." />
-    <span id="search-clear">X</span>
+    <input type="text" id="searchInput" placeholder="Szukaj..." />
+    <button id="clearSearch">X</button>
   </div>
 
   <!-- Kontener na tabelę z danymi -->
@@ -316,14 +294,14 @@
     /* ------ KONFIGURACJA POBIERANIA OBRAZKÓW Z GITHUB ------ */
     const repoOwner = "DamianMog";
     const repoName = "hw_models.github.io";
-    // Zmieniamy folder na '/sell/images'
     const folderPath = "sell/images";  
     const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${folderPath}`;
 
-    // Zmienne do zapamiętania danych (np. oryginalnego porządku wierszy)
-    let originalRowsData = [];
-    let currentSortColumn = null;
-    let currentSortDirection = 0; // 0 - brak, 1 - asc, 2 - desc
+    // Zmienna globalna do przechowywania oryginalnej kolejności wierszy
+    let originalRowsOrder = [];
+    // Zmienna do przechowywania aktualnego stanu sortowania
+    let currentSortColumn = null;  // index kolumny
+    let currentSortOrder = 0;      // 0 - brak, 1 - rosnąco, 2 - malejąco
 
     fetch(apiUrl)
       .then(resp => {
@@ -386,7 +364,6 @@
           });
 
           console.log("Ilość wierszy po filtrze Sell=tak:", filteredRows.length);
-          originalRowsData = filteredRows; // zapamiętujemy oryginał
           buildTable(filteredRows);
         })
         .catch(err => {
@@ -396,7 +373,7 @@
         });
     }
 
-    function buildTable(rowsData) {
+    function buildTable(filteredRows) {
       const table = document.createElement('table');
 
       // THEAD
@@ -406,12 +383,10 @@
       HEADERS.forEach((h, colIndex) => {
         const th = document.createElement('th');
         th.textContent = h;
-        
-        // SORTOWANIE – klik w nagłówek
+        // Obsługa kliknięcia w nagłówek (sortowanie)
         th.addEventListener('click', () => {
-          handleSort(colIndex);
+          handleSort(table, colIndex);
         });
-
         headerRow.appendChild(th);
       });
       thead.appendChild(headerRow);
@@ -420,22 +395,20 @@
       // TBODY
       const tbody = document.createElement('tbody');
 
-      rowsData.forEach(row => {
+      filteredRows.forEach((row, rowIndex) => {
         const tr = document.createElement('tr');
+        // Zapamiętujemy oryginalną pozycję (do przywracania sortowania bazowego)
+        tr.dataset.originalIndex = rowIndex;
 
         // Wypełnienie 8 kolumn z CSV
         COLUMNS_FROM_CSV.forEach((colIndex, idx) => {
           const td = document.createElement('td');
           td.textContent = (row[colIndex] || '').trim();
-          // Dodanie klasy dla kolumny "Toy #"
-          if (idx === 2) { // COLUMNS_FROM_CSV index 2 corresponds to "Toy #"
-            td.classList.add('toy-number');
-          }
           tr.appendChild(td);
         });
 
-        // Odczyt toyId z kolumny "Toy #" (na docelowej pozycji 2)
-        const toyId = tr.cells[2].textContent.trim();
+        // Odczyt toyId z kolumny "Toy #" (index 2 w finalnej tabeli)
+        const toyId = tr.cells[2].textContent.trim(); // Toy #
 
         // Kolumna 9 => Zdj.
         const tdPhoto1 = document.createElement('td');
@@ -448,9 +421,7 @@
             showImagePopup(imagesMap[toyId].photo1);
           });
           tdPhoto1.appendChild(img1);
-        } else {
-          tdPhoto1.textContent = '';
-        }
+        } 
         tr.appendChild(tdPhoto1);
 
         // Kolumna 10 => Zdj2.
@@ -464,8 +435,6 @@
             showImagePopup(imagesMap[toyId].photo2);
           });
           tdPhoto2.appendChild(img2);
-        } else {
-          tdPhoto2.textContent = '';
         }
         tr.appendChild(tdPhoto2);
 
@@ -474,7 +443,7 @@
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.addEventListener('change', () => {
-          updateRowTotal(tr);
+          updateRowTotal(tr, cenaSzt);
           updateSummary();
         });
         tdSelect.appendChild(checkbox);
@@ -484,17 +453,14 @@
         const tdQty = document.createElement('td');
         const inputNumber = document.createElement('input');
         inputNumber.type = 'number';
+        inputNumber.min = '1';
+        const sztValue = parseIntOr(row[12], 1);
+        inputNumber.max = sztValue.toString();
         inputNumber.value = '1';
-        /* Usuwamy walidację min/max – user może wpisać co chce
-           (ale wciąż liczymy Łączną cenę, jeśli coś wpisał) */
 
-        // Po zmianie wartości – przelicz cenę w wierszu
-        inputNumber.addEventListener('input', () => {
-          updateRowTotal(tr);
-          updateSummary();
-        });
+        // Usuwamy sprawdzanie i korygowanie wartości w JS - zostaje tylko event change
         inputNumber.addEventListener('change', () => {
-          updateRowTotal(tr);
+          updateRowTotal(tr, cenaSzt);
           updateSummary();
         });
         tdQty.appendChild(inputNumber);
@@ -506,6 +472,10 @@
         tdTotal.textContent = '';
         tr.appendChild(tdTotal);
 
+        // Odczyt ceny za sztukę z kolumny "Cena/Szt" (cell 6 w finalnej tabeli)
+        const cenaSzt = parseFloat(tr.cells[6].textContent) || 0;
+
+        // Umieszczamy wiersz w tbody
         tbody.appendChild(tr);
       });
 
@@ -515,204 +485,195 @@
       container.innerHTML = '';  
       container.appendChild(table);
 
-      // Podpinamy aktualizację do podsumowania
+      // Zapamiętujemy oryginalny zestaw wierszy (do "zerowania" sortu)
+      originalRowsOrder = Array.from(tbody.querySelectorAll('tr'));
+
+      // Zachowujemy oryginalny tekst w komórkach (potrzebne do highlightowania i przywracania)
+      storeOriginalCellText(table);
+
+      // Podpinamy eventy wyszukiwania
+      setupSearch(table);
+
+      // Początkowa aktualizacja
       updateSummary();
     }
 
     /************************************************************
-     * SORTOWANIE TABELI
+     * FUNKCJE SORTOWANIA
      ************************************************************/
-    function handleSort(columnIndex) {
-      const table = document.querySelector('#table-container table');
-      if (!table) return;
+    function handleSort(table, colIndex) {
+      const tbody = table.querySelector('tbody');
 
-      const thead = table.querySelector('thead');
-      const headers = thead.querySelectorAll('th');
-
-      // Zmiana stanu sortowania dla klikniętego nagłówka
-      if (currentSortColumn === columnIndex) {
-        // Przełącz kierunek: 0 -> 1 -> 2 -> 0
-        currentSortDirection = (currentSortDirection + 1) % 3;
+      // Jeśli klikamy w tę samą kolumnę - zmieniamy tryb sortowania
+      // 0 (brak) -> 1 (rosnąco) -> 2 (malejąco) -> 0 (brak) ...
+      if (currentSortColumn === colIndex) {
+        currentSortOrder = (currentSortOrder + 1) % 3;
       } else {
-        // Zaczynamy od asc jeśli wybrano inny nagłówek
-        currentSortColumn = columnIndex;
-        currentSortDirection = 1; // asc
+        // Jeśli klikamy w inną kolumnę, to zaczynamy od 1 (rosnąco)
+        currentSortColumn = colIndex;
+        currentSortOrder = 1;
       }
 
-      // Czyścimy wszystkie klasy sort-asc / sort-desc
-      headers.forEach(h => {
-        h.classList.remove('sort-asc', 'sort-desc');
-      });
-
-      // Jeśli currentSortDirection == 0 -> brak sortowania (przywracamy oryginał)
-      if (currentSortDirection === 0) {
-        buildTable(originalRowsData);
+      // 0 - wracamy do oryginalnej kolejności
+      if (currentSortOrder === 0) {
+        originalRowsOrder.forEach(row => tbody.appendChild(row));
         return;
       }
 
-      // Ustawiamy klasę strzałki na klikniętym th
-      const clickedHeader = headers[columnIndex];
-      if (currentSortDirection === 1) {
-        clickedHeader.classList.add('sort-asc');
-      } else if (currentSortDirection === 2) {
-        clickedHeader.classList.add('sort-desc');
-      }
+      // Pozostałe przypadki: 1 (asc), 2 (desc)
+      const rowsArray = Array.from(tbody.querySelectorAll('tr'));
 
-      // Pobieramy aktualne wiersze z data (z oryginalRowsData lub z tabeli)
-      const tableRowsData = getCurrentTableRowsData();
-
-      // Sortujemy
-      tableRowsData.sort((a, b) => {
-        let valA = a[columnIndex];
-        let valB = b[columnIndex];
-
-        // Spróbujmy rzutować na liczby
-        let numA = parseFloat(valA.replace(',', '.'));
-        let numB = parseFloat(valB.replace(',', '.'));
+      rowsArray.sort((a, b) => {
+        const aVal = a.cells[colIndex]?.textContent.trim() || "";
+        const bVal = b.cells[colIndex]?.textContent.trim() || "";
 
         // Sprawdzamy czy to liczby
-        const isNumA = !isNaN(numA);
-        const isNumB = !isNaN(numB);
+        const aNum = parseFloat(aVal.replace(',', '.'));
+        const bNum = parseFloat(bVal.replace(',', '.'));
+        const aIsNum = !isNaN(aNum);
+        const bIsNum = !isNaN(bNum);
 
-        if (isNumA && isNumB) {
-          // Sort numeryczny
-          return currentSortDirection === 1
-            ? numA - numB
-            : numB - numA;
+        let compareResult = 0;
+        if (aIsNum && bIsNum) {
+          // Sortowanie numeryczne
+          compareResult = aNum - bNum;
         } else {
-          // Sort alfabetyczny
-          return currentSortDirection === 1
-            ? valA.localeCompare(valB)
-            : valB.localeCompare(valA);
+          // Sortowanie tekstowe
+          compareResult = aVal.localeCompare(bVal);
         }
+
+        return (currentSortOrder === 1) ? compareResult : (-compareResult);
       });
 
-      // Przebudowujemy tabelę na podstawie posortowanych wierszy
-      buildTable(tableRowsData);
-
-      // Po przebudowie – odpalamy ponownie ewentualny search, żeby odfiltrować
-      applySearchFilter();
-    }
-
-    // Zwraca tablicę wierszy w formie tablic stringów, biorąc z obecnego HTML
-    function getCurrentTableRowsData() {
-      const table = document.querySelector('#table-container table');
-      if (!table) return [];
-
-      const rows = table.querySelectorAll('tbody tr');
-      const dataArr = [];
-
-      rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        const rowData = [];
-        cells.forEach(cell => {
-          // Jeżeli w komórce jest input / checkbox, ich wartości wstawimy osobno
-          const input = cell.querySelector('input');
-          if (input && input.type === 'checkbox') {
-            // Zamiast "on/off" damy np. "1"/"0" – ale do sortowania i tak nie będzie
-            // to aż tak przydatne, jednak zostawiamy dla spójności
-            rowData.push(input.checked ? "1" : "0");
-          } else if (input && input.type === 'number') {
-            rowData.push(input.value);
-          } else {
-            // Tekst
-            rowData.push(cell.textContent.trim());
-          }
-        });
-        dataArr.push(rowData);
-      });
-
-      return dataArr;
+      // Nowa kolejność w DOM
+      rowsArray.forEach(row => tbody.appendChild(row));
     }
 
     /************************************************************
-     * WYSZUKIWANIE
+     * ZAPIS ORYGINALNEGO TEKSTU KOMÓREK (DO HIGHLIGHTU)
      ************************************************************/
-    const searchInput = document.getElementById('search-input');
-    const searchClear = document.getElementById('search-clear');
-
-    searchInput.addEventListener('input', () => {
-      // Pokaż/ukryj przycisk X
-      searchClear.style.display = searchInput.value.length > 0 ? 'block' : 'none';
-
-      applySearchFilter();
-    });
-
-    // Kliknięcie w X czyści pole i resetuje
-    searchClear.addEventListener('click', () => {
-      searchInput.value = '';
-      searchClear.style.display = 'none';
-      applySearchFilter();
-    });
-
-    function applySearchFilter() {
-      const table = document.querySelector('#table-container table');
-      if (!table) return;
-
+    function storeOriginalCellText(table) {
       const rows = table.querySelectorAll('tbody tr');
-      const query = searchInput.value.trim().toLowerCase();
+      rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        cells.forEach((cell, idx) => {
+          // Jeżeli w komórce jest np. obrazek lub input, pomijamy zapisywanie
+          if (cell.children.length === 0) {
+            cell.dataset.originalText = cell.textContent || "";
+          }
+        });
+      });
+    }
 
-      // Jeśli wyszukiwana fraza ma < 2 znaki – pokaż wszystko i usuń highlight
-      if (query.length < 2) {
+    /************************************************************
+     * WYSZUKIWANIE I PODŚWIETLANIE
+     ************************************************************/
+    function setupSearch(table) {
+      const searchInput = document.getElementById('searchInput');
+      const clearBtn = document.getElementById('clearSearch');
+
+      // Pokaż/ukryj przycisk "X" w zależności od tego, czy coś wpisano
+      searchInput.addEventListener('input', () => {
+        if (searchInput.value.length > 0) {
+          clearBtn.style.display = 'block';
+        } else {
+          clearBtn.style.display = 'none';
+        }
+        applySearch(table, searchInput.value);
+      });
+
+      // Po kliknięciu "X" czyścimy input i przywracamy wszystko
+      clearBtn.addEventListener('click', () => {
+        searchInput.value = "";
+        clearBtn.style.display = 'none';
+        applySearch(table, "");
+      });
+    }
+
+    function applySearch(table, searchTerm) {
+      const rows = table.querySelectorAll('tbody tr');
+      const term = searchTerm.trim().toLowerCase();
+
+      // Jeżeli < 2 znaki, to brak filtrowania (wyświetlamy wszystkie, usuwamy highlighty)
+      if (term.length < 2) {
         rows.forEach(row => {
-          row.style.display = '';
-          // Usuwamy podświetlenia
-          row.querySelectorAll('.highlight').forEach(span => {
-            span.outerHTML = span.innerText;
+          row.style.display = ""; // pokaż
+          const cells = row.querySelectorAll('td');
+          cells.forEach(cell => {
+            // Przywróć oryginalny tekst
+            if (cell.dataset.originalText !== undefined) {
+              cell.innerHTML = cell.dataset.originalText;
+            }
           });
         });
         return;
       }
 
-      // Dla każdego wiersza sprawdzamy, czy pasuje
+      // Jeśli >= 2 znaki - filtrujemy + highlight
       rows.forEach(row => {
-        let rowText = row.innerText.toLowerCase();
-        if (rowText.includes(query)) {
-          // Wiersz pasuje – pokazujemy
-          row.style.display = '';
+        const cells = row.querySelectorAll('td');
+        let rowMatches = false;
 
-          // Podświetlamy wystąpienia w samej komórce
-          const cells = row.querySelectorAll('td');
-          cells.forEach(cell => {
-            // Usuwamy stare highlighty
-            cell.querySelectorAll('.highlight').forEach(span => {
-              span.outerHTML = span.innerText;
-            });
-            // Zakładamy nowe highlighty
-            highlightText(cell, query);
-          });
+        cells.forEach(cell => {
+          // Kolumny ze zdjęciem / inputami omijamy – tam nie ma tekstu do przeszukania
+          if (cell.dataset.originalText !== undefined) {
+            const original = cell.dataset.originalText;
+            const lowerOriginal = original.toLowerCase();
 
+            if (lowerOriginal.includes(term)) {
+              rowMatches = true;
+              // Zamieniamy fragmenty na podświetlone
+              const highlighted = original.replace(
+                new RegExp(term, 'gi'),
+                match => `<span class="highlight">${match}</span>`
+              );
+              cell.innerHTML = highlighted;
+            } else {
+              // Przywróć oryginalny tekst (bez highlight)
+              cell.innerHTML = original;
+            }
+          }
+        });
+
+        if (rowMatches) {
+          row.style.display = "";
         } else {
-          // Wiersz nie pasuje – ukrywamy
-          row.style.display = 'none';
+          row.style.display = "none";
         }
       });
     }
 
-    // Podmienia fragmenty tekstu w danym elemencie na <span class="highlight">...</span>
-    function highlightText(element, query) {
-      const text = element.innerText;
-      const lowerText = text.toLowerCase();
-      let startIndex = 0;
-      let newHTML = '';
-      while (true) {
-        const idx = lowerText.indexOf(query, startIndex);
-        if (idx === -1) {
-          // Doklejamy resztę i przerwa
-          newHTML += text.substring(startIndex);
-          break;
-        }
-        // Fragment przed wystąpieniem
-        newHTML += text.substring(startIndex, idx);
-        // Fragment podświetlony
-        newHTML += `<span class="highlight">${text.substring(idx, idx + query.length)}</span>`;
-        startIndex = idx + query.length;
+    /************************************************************
+     * POPUP ZE ZDJĘCIEM (FULL SCREEN)
+     ************************************************************/
+    const imagePopup = document.getElementById('image-popup');
+    const popupImage = document.getElementById('popup-image');
+    const popupCloseBtn = document.getElementById('popup-close');
+
+    // Kliknięcie w "X" zamyka popup
+    popupCloseBtn.addEventListener('click', hideImagePopup);
+
+    // Kliknięcie w tło lub sam obrazek -> zamyka popup
+    imagePopup.addEventListener('click', hideImagePopup);
+
+    // ESC zamyka popup
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        hideImagePopup();
       }
-      element.innerHTML = newHTML;
+    });
+
+    function showImagePopup(src) {
+      popupImage.src = src;
+      imagePopup.style.display = 'flex'; // widać overlay
+    }
+    function hideImagePopup() {
+      imagePopup.style.display = 'none';
+      popupImage.src = '';
     }
 
     /************************************************************
-     * ALGORYTM ODMIAŃIAJĄCY "MODELI"
+     * ALGORYTM ODMIANIAJĄCY "MODELI"
      ************************************************************/
     function odmianaLiczebnika(liczba, singular, plural234, plural5) {
       let ostatnia_cyfra = liczba % 10;
@@ -742,16 +703,12 @@
       const selectedModels = [];
 
       rows.forEach(row => {
-        if (row.style.display === 'none') {
-          // Pomijamy wiersze ukryte przez wyszukiwanie,
-          // ale checkbox / wartości w nich zaznaczone są wciąż pamiętane,
-          // więc finalnie też powinny się liczyć, jeśli user je zaznaczył?
-          // Wg treści: "fakt ile modeli wybranych i czy jest zaznaczony" - ma się ZAPAMIĘTAĆ.
-          // Zatem wliczamy je nawet jak wiersz jest hidden. 
+        if (row.style.display === "none") {
+          // Jeżeli wiersz ukryty przez wyszukiwanie, też możemy go pominąć w podsumowaniu
+          // ALE jednocześnie "stan" (checkbox itp.) się nie resetuje – jedynie nie widać wiersza.
         }
-
         const checkboxCell = row.cells[10];
-        const checkbox = checkboxCell?.querySelector('input[type="checkbox"]');
+        const checkbox = checkboxCell.querySelector('input[type="checkbox"]');
         if (!checkbox) return;
 
         const liczbaCell = row.cells[11];
@@ -838,48 +795,16 @@
     /************************************************************
      * FUNKCJA DO AKTUALIZACJI ŁĄCZNEJ CENY W WIERSZU
      ************************************************************/
-    function updateRowTotal(row) {
+    function updateRowTotal(row, cenaSzt) {
       const checkbox = row.cells[10].querySelector('input[type="checkbox"]');
-      const liczbaInput = row.cells[11].querySelector('input[type="number"]');
+      const liczba = parseInt(row.cells[11].querySelector('input[type="number"]').value, 10) || 1;
       const totalPriceCell = row.cells[12];
-      const cenaSzt = parseFloat(row.cells[6].textContent) || 0;
-      const liczba = parseFloat(liczbaInput.value) || 1;
-
       if (checkbox.checked) {
         const totalPrice = cenaSzt * liczba;
         totalPriceCell.textContent = `${totalPrice.toFixed(2)}zł`;
       } else {
         totalPriceCell.textContent = '';
       }
-    }
-
-    /************************************************************
-     * POPUP ZE ZDJĘCIEM (FULL SCREEN)
-     ************************************************************/
-    const imagePopup = document.getElementById('image-popup');
-    const popupImage = document.getElementById('popup-image');
-    const popupCloseBtn = document.getElementById('popup-close');
-
-    // Kliknięcie w "X" zamyka popup
-    popupCloseBtn.addEventListener('click', hideImagePopup);
-
-    // Kliknięcie w tło lub sam obrazek -> zamyka popup
-    imagePopup.addEventListener('click', hideImagePopup);
-
-    // ESC zamyka popup
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        hideImagePopup();
-      }
-    });
-
-    function showImagePopup(src) {
-      popupImage.src = src;
-      imagePopup.style.display = 'flex'; // widać overlay
-    }
-    function hideImagePopup() {
-      imagePopup.style.display = 'none';
-      popupImage.src = '';
     }
   </script>
 </body>
