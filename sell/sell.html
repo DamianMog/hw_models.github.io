@@ -76,6 +76,26 @@
     }
     th {
       background-color: #f4f4f4;
+      cursor: pointer; /* wskaźnik, że można klikać w nagłówek do sortowania */
+      position: relative;
+      user-select: none;
+    }
+
+    /* Ikona sortowania (strzałka) – wstawiana pseudoelementem */
+    th.sort-asc::after,
+    th.sort-desc::after {
+      content: '';
+      border: 6px solid transparent;
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    th.sort-asc::after {
+      border-bottom-color: #333; /* strzałka w górę */
+    }
+    th.sort-desc::after {
+      border-top-color: #333; /* strzałka w dół */
     }
 
     /* Wyróżnienie wiersza wybranego */
@@ -174,17 +194,47 @@
       font-weight: bold;
       margin-left: 10px;
     }
+
+    /* ======= WYSZUKIWANIE ======= */
+    #search-container {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      position: relative;
+      max-width: 300px;
+    }
+    #search-input {
+      width: 100%;
+      padding: 6px 8px;
+      box-sizing: border-box;
+    }
+    #search-clear {
+      position: absolute;
+      right: 10px;
+      cursor: pointer;
+      font-weight: bold;
+      color: #888;
+      display: none; /* Pokażemy, gdy w polu jest cokolwiek wpisane */
+      background: #f0f0f0;
+      border-radius: 50%;
+      padding: 0 6px;
+    }
+    .highlight {
+      background-color: yellow; /* jaskrawe podświetlenie */
+    }
   </style>
 </head>
+
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-NGBTP4NSYS"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-
   gtag('config', 'G-NGBTP4NSYS');
 </script>
+
 <body>
 
   <!-- Przycisk powrotu -->
@@ -200,6 +250,12 @@
   
   <h3>Jeżeli chcesz zakupić ode mnie jakieś modele, zaznacz je na poniższej liście a następnie skopiuj podsumowanie, które wygenerowało się pod tabelą. Prześlij takie podsumowanie do mnie w celu sfinalizowania sprzedaży. Każde 5 modeli to dodatkowa zniżka.</h3>
   
+  <!-- Kontener na wyszukiwanie -->
+  <div id="search-container">
+    <input type="text" id="search-input" placeholder="Wyszukaj..." />
+    <span id="search-clear">X</span>
+  </div>
+
   <!-- Kontener na tabelę z danymi -->
   <div id="table-container">
     <p>Wczytywanie danych...</p>
@@ -264,6 +320,11 @@
     const folderPath = "sell/images";  
     const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${folderPath}`;
 
+    // Zmienne do zapamiętania danych (np. oryginalnego porządku wierszy)
+    let originalRowsData = [];
+    let currentSortColumn = null;
+    let currentSortDirection = 0; // 0 - brak, 1 - asc, 2 - desc
+
     fetch(apiUrl)
       .then(resp => {
         if (!resp.ok) throw new Error(`Błąd GitHub API: ${resp.status}`);
@@ -276,8 +337,6 @@
           if (file.type === "file" && file.name.match(/\.(jpg|jpeg|png|gif)$/i)) {
             const nameNoExt = file.name.replace(/\.(jpg|jpeg|png|gif)$/i, "");
             const parts = nameNoExt.split("_");
-            console.log("Plik oryginalny:", file.name, " -> parts:", parts);
-
             if (parts.length === 2) {
               const [toyIdRaw, seq] = parts;
               const toyId = toyIdRaw.trim();
@@ -327,6 +386,7 @@
           });
 
           console.log("Ilość wierszy po filtrze Sell=tak:", filteredRows.length);
+          originalRowsData = filteredRows; // zapamiętujemy oryginał
           buildTable(filteredRows);
         })
         .catch(err => {
@@ -336,16 +396,22 @@
         });
     }
 
-    function buildTable(filteredRows) {
+    function buildTable(rowsData) {
       const table = document.createElement('table');
 
       // THEAD
       const thead = document.createElement('thead');
       const headerRow = document.createElement('tr');
 
-      HEADERS.forEach(h => {
+      HEADERS.forEach((h, colIndex) => {
         const th = document.createElement('th');
         th.textContent = h;
+        
+        // SORTOWANIE – klik w nagłówek
+        th.addEventListener('click', () => {
+          handleSort(colIndex);
+        });
+
         headerRow.appendChild(th);
       });
       thead.appendChild(headerRow);
@@ -354,7 +420,7 @@
       // TBODY
       const tbody = document.createElement('tbody');
 
-      filteredRows.forEach(row => {
+      rowsData.forEach(row => {
         const tr = document.createElement('tr');
 
         // Wypełnienie 8 kolumn z CSV
@@ -368,14 +434,11 @@
           tr.appendChild(td);
         });
 
-        // Odczyt toyId z kolumny "Toy #" (table cell 2)
-        const toyId = tr.cells[2].textContent.trim(); // Toy #
-
-        console.log("toyId z CSV =", toyId);
+        // Odczyt toyId z kolumny "Toy #" (na docelowej pozycji 2)
+        const toyId = tr.cells[2].textContent.trim();
 
         // Kolumna 9 => Zdj.
         const tdPhoto1 = document.createElement('td');
-        tdPhoto1.innerHTML = '';
         if (toyId && imagesMap[toyId]?.photo1) {
           const img1 = document.createElement('img');
           img1.classList.add('model-photo');
@@ -385,12 +448,13 @@
             showImagePopup(imagesMap[toyId].photo1);
           });
           tdPhoto1.appendChild(img1);
+        } else {
+          tdPhoto1.textContent = '';
         }
         tr.appendChild(tdPhoto1);
 
         // Kolumna 10 => Zdj2.
         const tdPhoto2 = document.createElement('td');
-        tdPhoto2.innerHTML = '';
         if (toyId && imagesMap[toyId]?.photo2) {
           const img2 = document.createElement('img');
           img2.classList.add('model-photo');
@@ -400,6 +464,8 @@
             showImagePopup(imagesMap[toyId].photo2);
           });
           tdPhoto2.appendChild(img2);
+        } else {
+          tdPhoto2.textContent = '';
         }
         tr.appendChild(tdPhoto2);
 
@@ -408,7 +474,7 @@
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.addEventListener('change', () => {
-          updateRowTotal(tr, cenaSzt);
+          updateRowTotal(tr);
           updateSummary();
         });
         tdSelect.appendChild(checkbox);
@@ -418,28 +484,17 @@
         const tdQty = document.createElement('td');
         const inputNumber = document.createElement('input');
         inputNumber.type = 'number';
-        inputNumber.min = '1';
-        const sztValue = parseIntOr(row[12], 1);
-        inputNumber.max = sztValue.toString();
         inputNumber.value = '1';
+        /* Usuwamy walidację min/max – user może wpisać co chce
+           (ale wciąż liczymy Łączną cenę, jeśli coś wpisał) */
+
+        // Po zmianie wartości – przelicz cenę w wierszu
         inputNumber.addEventListener('input', () => {
-          // Pobranie aktualnej wartości i maksymalnej wartości
-          let currentValue = parseInt(inputNumber.value, 10);
-          const maxValue = parseInt(inputNumber.max, 10);
-
-          if (isNaN(currentValue) || currentValue < 1) {
-            inputNumber.value = '1';
-            currentValue = 1;
-          } else if (currentValue > maxValue) {
-            inputNumber.value = maxValue;
-            currentValue = maxValue;
-          }
-
-          updateRowTotal(tr, cenaSzt);
+          updateRowTotal(tr);
           updateSummary();
         });
         inputNumber.addEventListener('change', () => {
-          updateRowTotal(tr, cenaSzt);
+          updateRowTotal(tr);
           updateSummary();
         });
         tdQty.appendChild(inputNumber);
@@ -451,9 +506,6 @@
         tdTotal.textContent = '';
         tr.appendChild(tdTotal);
 
-        // Odczyt ceny za sztukę z kolumny "Cena/Szt" (cell 6)
-        const cenaSzt = parseFloat(row[11]) || 0;
-
         tbody.appendChild(tr);
       });
 
@@ -463,37 +515,200 @@
       container.innerHTML = '';  
       container.appendChild(table);
 
-      // Początkowa aktualizacja
+      // Podpinamy aktualizację do podsumowania
       updateSummary();
     }
 
     /************************************************************
-     * POPUP ZE ZDJĘCIEM (FULL SCREEN)
+     * SORTOWANIE TABELI
      ************************************************************/
-    const imagePopup = document.getElementById('image-popup');
-    const popupImage = document.getElementById('popup-image');
-    const popupCloseBtn = document.getElementById('popup-close');
+    function handleSort(columnIndex) {
+      const table = document.querySelector('#table-container table');
+      if (!table) return;
 
-    // Kliknięcie w "X" zamyka popup
-    popupCloseBtn.addEventListener('click', hideImagePopup);
+      const thead = table.querySelector('thead');
+      const headers = thead.querySelectorAll('th');
 
-    // Kliknięcie w tło lub sam obrazek -> zamyka popup
-    imagePopup.addEventListener('click', hideImagePopup);
-
-    // ESC zamyka popup
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        hideImagePopup();
+      // Zmiana stanu sortowania dla klikniętego nagłówka
+      if (currentSortColumn === columnIndex) {
+        // Przełącz kierunek: 0 -> 1 -> 2 -> 0
+        currentSortDirection = (currentSortDirection + 1) % 3;
+      } else {
+        // Zaczynamy od asc jeśli wybrano inny nagłówek
+        currentSortColumn = columnIndex;
+        currentSortDirection = 1; // asc
       }
+
+      // Czyścimy wszystkie klasy sort-asc / sort-desc
+      headers.forEach(h => {
+        h.classList.remove('sort-asc', 'sort-desc');
+      });
+
+      // Jeśli currentSortDirection == 0 -> brak sortowania (przywracamy oryginał)
+      if (currentSortDirection === 0) {
+        buildTable(originalRowsData);
+        return;
+      }
+
+      // Ustawiamy klasę strzałki na klikniętym th
+      const clickedHeader = headers[columnIndex];
+      if (currentSortDirection === 1) {
+        clickedHeader.classList.add('sort-asc');
+      } else if (currentSortDirection === 2) {
+        clickedHeader.classList.add('sort-desc');
+      }
+
+      // Pobieramy aktualne wiersze z data (z oryginalRowsData lub z tabeli)
+      const tableRowsData = getCurrentTableRowsData();
+
+      // Sortujemy
+      tableRowsData.sort((a, b) => {
+        let valA = a[columnIndex];
+        let valB = b[columnIndex];
+
+        // Spróbujmy rzutować na liczby
+        let numA = parseFloat(valA.replace(',', '.'));
+        let numB = parseFloat(valB.replace(',', '.'));
+
+        // Sprawdzamy czy to liczby
+        const isNumA = !isNaN(numA);
+        const isNumB = !isNaN(numB);
+
+        if (isNumA && isNumB) {
+          // Sort numeryczny
+          return currentSortDirection === 1
+            ? numA - numB
+            : numB - numA;
+        } else {
+          // Sort alfabetyczny
+          return currentSortDirection === 1
+            ? valA.localeCompare(valB)
+            : valB.localeCompare(valA);
+        }
+      });
+
+      // Przebudowujemy tabelę na podstawie posortowanych wierszy
+      buildTable(tableRowsData);
+
+      // Po przebudowie – odpalamy ponownie ewentualny search, żeby odfiltrować
+      applySearchFilter();
+    }
+
+    // Zwraca tablicę wierszy w formie tablic stringów, biorąc z obecnego HTML
+    function getCurrentTableRowsData() {
+      const table = document.querySelector('#table-container table');
+      if (!table) return [];
+
+      const rows = table.querySelectorAll('tbody tr');
+      const dataArr = [];
+
+      rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const rowData = [];
+        cells.forEach(cell => {
+          // Jeżeli w komórce jest input / checkbox, ich wartości wstawimy osobno
+          const input = cell.querySelector('input');
+          if (input && input.type === 'checkbox') {
+            // Zamiast "on/off" damy np. "1"/"0" – ale do sortowania i tak nie będzie
+            // to aż tak przydatne, jednak zostawiamy dla spójności
+            rowData.push(input.checked ? "1" : "0");
+          } else if (input && input.type === 'number') {
+            rowData.push(input.value);
+          } else {
+            // Tekst
+            rowData.push(cell.textContent.trim());
+          }
+        });
+        dataArr.push(rowData);
+      });
+
+      return dataArr;
+    }
+
+    /************************************************************
+     * WYSZUKIWANIE
+     ************************************************************/
+    const searchInput = document.getElementById('search-input');
+    const searchClear = document.getElementById('search-clear');
+
+    searchInput.addEventListener('input', () => {
+      // Pokaż/ukryj przycisk X
+      searchClear.style.display = searchInput.value.length > 0 ? 'block' : 'none';
+
+      applySearchFilter();
     });
 
-    function showImagePopup(src) {
-      popupImage.src = src;
-      imagePopup.style.display = 'flex'; // widać overlay
+    // Kliknięcie w X czyści pole i resetuje
+    searchClear.addEventListener('click', () => {
+      searchInput.value = '';
+      searchClear.style.display = 'none';
+      applySearchFilter();
+    });
+
+    function applySearchFilter() {
+      const table = document.querySelector('#table-container table');
+      if (!table) return;
+
+      const rows = table.querySelectorAll('tbody tr');
+      const query = searchInput.value.trim().toLowerCase();
+
+      // Jeśli wyszukiwana fraza ma < 2 znaki – pokaż wszystko i usuń highlight
+      if (query.length < 2) {
+        rows.forEach(row => {
+          row.style.display = '';
+          // Usuwamy podświetlenia
+          row.querySelectorAll('.highlight').forEach(span => {
+            span.outerHTML = span.innerText;
+          });
+        });
+        return;
+      }
+
+      // Dla każdego wiersza sprawdzamy, czy pasuje
+      rows.forEach(row => {
+        let rowText = row.innerText.toLowerCase();
+        if (rowText.includes(query)) {
+          // Wiersz pasuje – pokazujemy
+          row.style.display = '';
+
+          // Podświetlamy wystąpienia w samej komórce
+          const cells = row.querySelectorAll('td');
+          cells.forEach(cell => {
+            // Usuwamy stare highlighty
+            cell.querySelectorAll('.highlight').forEach(span => {
+              span.outerHTML = span.innerText;
+            });
+            // Zakładamy nowe highlighty
+            highlightText(cell, query);
+          });
+
+        } else {
+          // Wiersz nie pasuje – ukrywamy
+          row.style.display = 'none';
+        }
+      });
     }
-    function hideImagePopup() {
-      imagePopup.style.display = 'none';
-      popupImage.src = '';
+
+    // Podmienia fragmenty tekstu w danym elemencie na <span class="highlight">...</span>
+    function highlightText(element, query) {
+      const text = element.innerText;
+      const lowerText = text.toLowerCase();
+      let startIndex = 0;
+      let newHTML = '';
+      while (true) {
+        const idx = lowerText.indexOf(query, startIndex);
+        if (idx === -1) {
+          // Doklejamy resztę i przerwa
+          newHTML += text.substring(startIndex);
+          break;
+        }
+        // Fragment przed wystąpieniem
+        newHTML += text.substring(startIndex, idx);
+        // Fragment podświetlony
+        newHTML += `<span class="highlight">${text.substring(idx, idx + query.length)}</span>`;
+        startIndex = idx + query.length;
+      }
+      element.innerHTML = newHTML;
     }
 
     /************************************************************
@@ -527,22 +742,16 @@
       const selectedModels = [];
 
       rows.forEach(row => {
-        // Indeksy w finalnej tabeli:
-        //  0: Series
-        //  1: Year
-        //  2: Toy #
-        //  3: Col. #
-        //  4: Casting
-        //  5: Set #
-        //  6: Cena/Szt
-        //  7: Szt.
-        //  8: Zdj.
-        //  9: Zdj2.
-        // 10: Wybierz (checkbox)
-        // 11: Liczba (input)
-        // 12: Łączna cena
+        if (row.style.display === 'none') {
+          // Pomijamy wiersze ukryte przez wyszukiwanie,
+          // ale checkbox / wartości w nich zaznaczone są wciąż pamiętane,
+          // więc finalnie też powinny się liczyć, jeśli user je zaznaczył?
+          // Wg treści: "fakt ile modeli wybranych i czy jest zaznaczony" - ma się ZAPAMIĘTAĆ.
+          // Zatem wliczamy je nawet jak wiersz jest hidden. 
+        }
+
         const checkboxCell = row.cells[10];
-        const checkbox = checkboxCell.querySelector('input[type="checkbox"]');
+        const checkbox = checkboxCell?.querySelector('input[type="checkbox"]');
         if (!checkbox) return;
 
         const liczbaCell = row.cells[11];
@@ -629,16 +838,48 @@
     /************************************************************
      * FUNKCJA DO AKTUALIZACJI ŁĄCZNEJ CENY W WIERSZU
      ************************************************************/
-    function updateRowTotal(row, cenaSzt) {
+    function updateRowTotal(row) {
       const checkbox = row.cells[10].querySelector('input[type="checkbox"]');
-      const liczba = parseInt(row.cells[11].querySelector('input[type="number"]').value, 10) || 1;
+      const liczbaInput = row.cells[11].querySelector('input[type="number"]');
       const totalPriceCell = row.cells[12];
+      const cenaSzt = parseFloat(row.cells[6].textContent) || 0;
+      const liczba = parseFloat(liczbaInput.value) || 1;
+
       if (checkbox.checked) {
         const totalPrice = cenaSzt * liczba;
         totalPriceCell.textContent = `${totalPrice.toFixed(2)}zł`;
       } else {
         totalPriceCell.textContent = '';
       }
+    }
+
+    /************************************************************
+     * POPUP ZE ZDJĘCIEM (FULL SCREEN)
+     ************************************************************/
+    const imagePopup = document.getElementById('image-popup');
+    const popupImage = document.getElementById('popup-image');
+    const popupCloseBtn = document.getElementById('popup-close');
+
+    // Kliknięcie w "X" zamyka popup
+    popupCloseBtn.addEventListener('click', hideImagePopup);
+
+    // Kliknięcie w tło lub sam obrazek -> zamyka popup
+    imagePopup.addEventListener('click', hideImagePopup);
+
+    // ESC zamyka popup
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        hideImagePopup();
+      }
+    });
+
+    function showImagePopup(src) {
+      popupImage.src = src;
+      imagePopup.style.display = 'flex'; // widać overlay
+    }
+    function hideImagePopup() {
+      imagePopup.style.display = 'none';
+      popupImage.src = '';
     }
   </script>
 </body>
