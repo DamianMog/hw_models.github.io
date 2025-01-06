@@ -83,7 +83,7 @@
       background-color: #caf0f8;
     }
 
-    /* Powiększamy checkbox i ustawiamy kursory */
+    /* Powiększamy checkbox i ustawiamy kursory (tak jak w poprzedniej stronie) */
     input[type="checkbox"] {
       transform: scale(1.3);
       cursor: pointer;
@@ -168,6 +168,11 @@
       margin-top: 10px;
       margin-bottom: 10px;
       display: block; /* aby był w osobnej linii */
+    }
+
+    /* Podświetlenie wyszukiwanej frazy */
+    .highlight {
+      background-color: yellow;
     }
   </style>
 </head>
@@ -368,7 +373,10 @@
         // Wypełnienie kolumn: Series, Year, Toy #, Col. #, Casting, Set #
         COLUMNS_FROM_CSV.forEach(colIndex => {
           const td = document.createElement('td');
-          td.textContent = (row[colIndex] || '').trim();
+          const val = (row[colIndex] || '').trim();
+          td.textContent = val;
+          // Zachowujemy oryginalny tekst do późniejszego highlightowania
+          td.dataset.originalText = val;
           tr.appendChild(td);
         });
 
@@ -377,6 +385,9 @@
 
         // Kolumna Zdj.
         const tdPhoto = document.createElement('td');
+        // Domyślnie puste, do highlightu
+        tdPhoto.dataset.originalText = "";
+
         if (toyId && imagesMap[toyId]) {
           const img = document.createElement('img');
           img.classList.add('model-photo');
@@ -400,6 +411,9 @@
 
         // Kolumna Posiadam (checkbox)
         const tdPosiadam = document.createElement('td');
+        // Domyślnie puste, do highlightu
+        tdPosiadam.dataset.originalText = "";
+
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.addEventListener('change', function() {
@@ -484,25 +498,50 @@
     }
 
     /************************************************************
-     * FUNKCJA WYSZUKIWANIA
+     * FUNKCJA WYSZUKIWANIA Z PODŚWIETLENIEM
      ************************************************************/
     function applySearch(searchTerm, table) {
       const term = searchTerm.trim().toLowerCase();
       const rows = table.querySelectorAll('tbody tr');
 
-      if (!term) {
-        // jeśli pole jest puste, pokazujemy wszystkie wiersze
-        rows.forEach(row => {
-          row.style.display = "";
-        });
-        return;
-      }
-
       rows.forEach(row => {
-        // Sprawdzamy cały tekst wiersza
-        const rowText = row.innerText.toLowerCase();
-        // Jeżeli wiersz zawiera wyszukiwaną frazę, pokazujemy, w innym razie ukrywamy
-        row.style.display = rowText.includes(term) ? "" : "none";
+        let rowMatches = false;
+        const cells = row.querySelectorAll('td');
+
+        // Najpierw przywracamy oryginalny tekst, usuwając poprzednie highlighty
+        cells.forEach(cell => {
+          if (cell.dataset.originalText !== undefined) {
+            cell.innerHTML = cell.dataset.originalText;
+          }
+        });
+
+        // Jeżeli pole wyszukiwania jest puste, to pokaż wszystkie wiersze i koniec
+        if (!term) {
+          row.style.display = "";
+          return;
+        }
+
+        // Szukamy w każdej komórce
+        cells.forEach(cell => {
+          if (cell.dataset.originalText !== undefined) {
+            const original = cell.dataset.originalText;
+            const lowerOriginal = original.toLowerCase();
+            if (lowerOriginal.includes(term)) {
+              rowMatches = true;
+              // Podświetlamy fragment
+              const highlighted = original.replace(
+                new RegExp(term, 'gi'),
+                match => `<span class="highlight">${match}</span>`
+              );
+              cell.innerHTML = highlighted;
+            } else {
+              cell.innerHTML = original; // bez highlight
+            }
+          }
+        });
+
+        // Jeśli wiersz w ogóle nie pasuje do wyszukiwanej frazy => ukrywamy
+        row.style.display = rowMatches ? "" : "none";
       });
     }
 
