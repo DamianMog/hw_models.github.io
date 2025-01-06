@@ -72,6 +72,7 @@
       /* Pozwala zawijać tekst */
       white-space: normal;
       vertical-align: middle;
+      position: relative; /* Umożliwia umieszczenie strzałek sortowania w nagłówku */
     }
     th {
       background-color: #f4f4f4;
@@ -87,13 +88,6 @@
     input[type="checkbox"] {
       transform: scale(1.3);
       cursor: pointer;
-    }
-
-    /* Styl inputa liczbowego (Ilość) */
-    input[type="number"] {
-      width: 60px;
-      text-align: center;
-      padding: 2px 4px;
     }
 
     /*
@@ -160,19 +154,46 @@
       user-select: none;
     }
 
-    /* ====== Pole wyszukiwania ===== */
-    #searchInput {
-      width: 300px;
-      font-size: 1em;
-      padding: 6px;
+    /* ====== Pole i kontener wyszukiwania (TAK JAK W SELL) ===== */
+    /* DODANE/ ZMIENIONE */
+    #search-container {
       margin-top: 10px;
+      position: relative;
+      display: inline-block;
+    }
+    #searchInput {
+      font-size: 1.2em;
+      padding: 8px 10px;
+      width: 300px;
       margin-bottom: 10px;
-      display: block; /* aby był w osobnej linii */
+    }
+    #clearSearch {
+      position: absolute;
+      right: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      cursor: pointer;
+      font-weight: bold;
+      display: none; /* na początku ukrywamy */
+      background: none;
+      border: none;
+      color: #444;
+      font-size: 1.2em;
     }
 
     /* Podświetlenie wyszukiwanej frazy */
     .highlight {
       background-color: yellow;
+    }
+
+    /* Klasa wyróżniająca strzałkę w nagłówku przy sortowaniu */
+    /* DODANE/ ZMIENIONE */
+    .sort-arrow {
+      position: absolute;
+      right: 8px;
+      font-size: 0.8em;
+      color: #666;
+      user-select: none;
     }
   </style>
 </head>
@@ -195,10 +216,20 @@
   </div>
 
   <h1>Lista modeli, które chcę kupić</h1>
-  <h3>Jeżeli posiadasz na sprzedaż model z poniższej listy, możesz go zaznaczyć, a następnie skopiować podsumowanie które znajduje się pod tabelą. Prześlij takie podsumowanie do mnie w celu sfinalizowania zakupu. Interesują mnie tylko modele w idealnym stanie, na krótkich kartach (nie STH). W grę wchodzi wymiana za modele które posiadam na sprzedaż <a href="https://damianmog.github.io/hw_models.github.io/sell/sell.html" target="_blank">tutaj</a>.</h3>
+  <h3>
+    Jeżeli posiadasz na sprzedaż model z poniższej listy, możesz go zaznaczyć, a następnie skopiować podsumowanie które znajduje się pod tabelą. 
+    Prześlij takie podsumowanie do mnie w celu sfinalizowania zakupu. 
+    Interesują mnie tylko modele w idealnym stanie, na krótkich kartach (nie STH). 
+    W grę wchodzi wymiana za modele które posiadam na sprzedaż 
+    <a href="https://damianmog.github.io/hw_models.github.io/sell/sell.html" target="_blank">tutaj</a>.
+  </h3>
   
-  <!-- Pole do wyszukiwania -->
-  <input type="text" id="searchInput" placeholder="Szukaj..."/>
+  <!-- Kontener wyszukiwania (TAK JAK W SELL) -->
+  <!-- DODANE/ ZMIENIONE -->
+  <div id="search-container">
+    <input type="text" id="searchInput" placeholder="Szukaj..."/>
+    <button id="clearSearch">X</button>
+  </div>
 
   <!-- Kontener na tabelę z danymi -->
   <div id="table-container">
@@ -249,10 +280,10 @@
     // Mapa toyId -> { photo }
     const imagesMap = {};
 
-    // Zmienne do sortowania
-    let originalRows = [];        // Oryginalna kolejność wierszy
-    let currentSortColumn = -1;   // Która kolumna jest posortowana (-1 = żadna)
-    let sortState = 0;           // 0 -> brak, 1 -> asc, 2 -> desc
+    // Zmienne do obsługi sortowania
+    let originalRows = [];           // Oryginalna kolejność wierszy
+    let currentSortColumn = -1;      // Która kolumna jest posortowana (-1 = żadna)
+    let sortState = 0;              // 0 -> brak, 1 -> asc, 2 -> desc
 
     /************************************************************
      * KONFIGURACJA POBIERANIA OBRAZKÓW Z GITHUB
@@ -309,10 +340,6 @@
           const headers = headerLine.split(',').map(header => header.trim());
           console.log("Nagłówki z pliku CSV:", headers);
 
-          headers.forEach((header, index) => {
-            console.log(`Indeks ${index}: ${header}`);
-          });
-
           if (!headers.includes('Buy')) {
             console.warn('Kolumna "Buy" nie została znaleziona w nagłówkach CSV.');
           }
@@ -322,24 +349,18 @@
             throw new Error('CSV: brak danych lub za mało wierszy.');
           }
 
-          const totalRows = allRows.length;
-          console.log("Łączna liczba wierszy w CSV:", totalRows);
-
           // Filtrowanie danych: Buy == "Tak"
           const rowsWithBuyTak = allRows.filter(row => {
             const buyVal = row[BUY_INDEX] ? row[BUY_INDEX].trim().toLowerCase() : '';
             return buyVal === 'tak';
           });
 
-          console.log(`Ilość wierszy gdzie Buy == "Tak": ${rowsWithBuyTak.length}`);
-
-          const finalFilteredRows = rowsWithBuyTak;
-
-          buildTable(finalFilteredRows);
+          buildTable(rowsWithBuyTak);
         })
         .catch(err => {
           console.error('Błąd podczas wczytywania CSV:', err);
-          document.getElementById('table-container').innerHTML = '<p>Wystąpił błąd podczas wczytywania danych.</p>';
+          document.getElementById('table-container').innerHTML =
+            '<p>Wystąpił błąd podczas wczytywania danych.</p>';
         });
     }
 
@@ -380,10 +401,11 @@
           tr.appendChild(td);
         });
 
-        // Odczyt toyId
-        const toyId = (row[3] || '').trim(); // Toy # jest w kolumnie 3
+        // Odczyt toyId = wartość z kolumny "Toy #" => CSV index 3, 
+        // ale w docelowej tabeli: HEADERS[2] (ponieważ Series=0, Year=1, Toy#=2)
+        const toyId = (row[3] || '').trim();
 
-        // Kolumna Zdj.
+        // Kolumna Zdj. (HEADERS index 6)
         const tdPhoto = document.createElement('td');
         // Domyślnie puste, do highlightu
         tdPhoto.dataset.originalText = "";
@@ -398,6 +420,7 @@
           });
           tdPhoto.appendChild(img);
         } else {
+          // Brak zdjęcia => wstawiamy "no photo"
           const img = document.createElement('img');
           img.classList.add('model-photo');
           img.src = DEFAULT_IMAGE_PATH;
@@ -409,9 +432,8 @@
         }
         tr.appendChild(tdPhoto);
 
-        // Kolumna Posiadam (checkbox)
+        // Kolumna Posiadam (checkbox) (HEADERS index 7)
         const tdPosiadam = document.createElement('td');
-        // Domyślnie puste, do highlightu
         tdPosiadam.dataset.originalText = "";
 
         const checkbox = document.createElement('input');
@@ -442,21 +464,39 @@
       // Początkowa aktualizacja
       updateSummary();
 
-      // Ustawiamy obsługę wyszukiwania
+      // Obsługa wyszukiwania z przyciskiem X (TAK JAK W SELL)
       const searchInput = document.getElementById('searchInput');
+      const clearBtn = document.getElementById('clearSearch');
+
       searchInput.addEventListener('input', () => {
+        clearBtn.style.display = (searchInput.value.length > 0) ? 'block' : 'none';
         applySearch(searchInput.value, table);
+      });
+
+      clearBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        clearBtn.style.display = 'none';
+        applySearch('', table);
       });
     }
 
     /************************************************************
-     * FUNKCJE SORTOWANIA
+     * FUNKCJE SORTOWANIA Z WYŚWIETLANIEM STRZAŁEK
      ************************************************************/
     function sortColumn(table, colIndex) {
+      const thead = table.querySelector('thead');
+      const ths = thead.querySelectorAll('th');
       const tbody = table.querySelector('tbody');
 
+      // Usuwamy poprzednie strzałki
+      ths.forEach((th, i) => {
+        th.textContent = HEADERS[i];
+        const oldArrow = th.querySelector('.sort-arrow');
+        if (oldArrow) th.removeChild(oldArrow);
+      });
+
       // Jeśli klikamy ponownie w tę samą kolumnę, zmieniamy stan sortowania
-      // 0 -> 1 -> 2 -> 0 ...
+      // 0 -> 1 (asc) -> 2 (desc) -> 0 (brak) ...
       if (currentSortColumn === colIndex) {
         sortState = (sortState + 1) % 3;
       } else {
@@ -464,11 +504,17 @@
         sortState = 1; // zacznij od rosnącego
       }
 
-      // Gdy sortState = 0 (brak), przywracamy oryginalną kolejność
+      // Gdy sortState = 0 => przywróć oryginalną kolejność
       if (sortState === 0) {
         originalRows.forEach(row => tbody.appendChild(row));
         return;
       }
+
+      // Dodajemy strzałkę (↑ dla 1, ↓ dla 2)
+      const arrow = document.createElement('span');
+      arrow.classList.add('sort-arrow');
+      arrow.textContent = (sortState === 1) ? '↑' : '↓';
+      ths[colIndex].appendChild(arrow);
 
       // W innym przypadku sortujemy
       const rowsArray = Array.from(tbody.querySelectorAll('tr'));
@@ -498,7 +544,7 @@
     }
 
     /************************************************************
-     * FUNKCJA WYSZUKIWANIA Z PODŚWIETLENIEM
+     * FUNKCJA WYSZUKIWANIA Z PODŚWIETLENIEM (TAK JAK W SELL)
      ************************************************************/
     function applySearch(searchTerm, table) {
       const term = searchTerm.trim().toLowerCase();
@@ -515,17 +561,18 @@
           }
         });
 
-        // Jeżeli pole wyszukiwania jest puste, to pokaż wszystkie wiersze i koniec
+        // Jeżeli pole wyszukiwania jest puste => pokaż wszystkie wiersze i koniec
         if (!term) {
           row.style.display = "";
           return;
         }
 
-        // Szukamy w każdej komórce
+        // Szukamy w każdej "tekstowej" komórce
         cells.forEach(cell => {
           if (cell.dataset.originalText !== undefined) {
             const original = cell.dataset.originalText;
             const lowerOriginal = original.toLowerCase();
+
             if (lowerOriginal.includes(term)) {
               rowMatches = true;
               // Podświetlamy fragment
@@ -540,7 +587,7 @@
           }
         });
 
-        // Jeśli wiersz w ogóle nie pasuje do wyszukiwanej frazy => ukrywamy
+        // Jeśli wiersz w ogóle nie pasuje do wyszukiwanej frazy => ukrywamy go
         row.style.display = rowMatches ? "" : "none";
       });
     }
@@ -613,7 +660,7 @@
 
         if (checkbox.checked) {
           selectedCount++;
-          const toyId = row.cells[2].textContent.trim(); // Toy # jest w kolumnie 2
+          const toyId = row.cells[2].textContent.trim(); // Toy # (kolumna 2)
           selectedModels.push(`${toyId}`);
         }
       });
@@ -622,7 +669,7 @@
       const copyBtn = document.getElementById('copyBtn');
 
       if (selectedCount === 0) {
-        summaryEl.textContent =
+        summaryEl.textContent = 
           'Zaznacz wiersze z modelami i prześlij wiadomość do sprzedawcy.';
         copyBtn.style.display = 'none';
         return;
@@ -632,6 +679,7 @@
 
       const joinedModels = selectedModels.join(', ');
       const odmiana = odmianaLiczebnika(selectedCount, "model", "modele", "modeli");
+
       summaryEl.textContent =
         `Wybrano ${odmiana}.\n` +
         `Szczegóły: ${joinedModels}.`;
